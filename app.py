@@ -2572,7 +2572,19 @@ def evaluate_sentiment():
         {"text": "Not good, not bad, manageable", "label": "neutral", "language_style": "english", "tone": "nuanced"},
         {"text": "Sahi hai overall but expensive", "label": "neutral", "language_style": "hinglish", "tone": "mixed"},
         {"text": "Accha hai but not worth the price maybe", "label": "neutral", "language_style": "hinglish", "tone": "mixed"},
-        {"text": "Awesome packaging, product useless", "label": "negative", "language_style": "code_mixed", "tone": "sarcastic"}
+        {"text": "Awesome packaging, product useless", "label": "negative", "language_style": "code_mixed", "tone": "sarcastic"},
+
+        # Expanded sarcasm set (hard-tone robustness)
+        {"text": "Great service, delayed again and totally disappointed.", "label": "negative", "language_style": "english", "tone": "sarcastic"},
+        {"text": "Awesome support, no response and pathetic handling.", "label": "negative", "language_style": "english", "tone": "sarcastic"},
+        {"text": "Fantastic product, fake and counterfeit item delivered.", "label": "negative", "language_style": "english", "tone": "sarcastic"},
+        {"text": "Perfect experience, refund never came and worst support.", "label": "negative", "language_style": "english", "tone": "sarcastic"},
+        {"text": "Bahut badhiya service, bekaar support and late delivery.", "label": "negative", "language_style": "hinglish", "tone": "sarcastic"},
+        {"text": "Kya mast delivery, delayed and damaged package.", "label": "negative", "language_style": "hinglish", "tone": "sarcastic"},
+        {"text": "Super authentic product, fake, useless and worst quality.", "label": "negative", "language_style": "code_mixed", "tone": "sarcastic"},
+        {"text": "Love this support, no response and pathetic handling.", "label": "negative", "language_style": "code_mixed", "tone": "sarcastic"},
+        {"text": "Perfect skin care, rash and irritation free bonus.", "label": "negative", "language_style": "hinglish", "tone": "sarcastic"},
+        {"text": "Brilliant pricing, overpriced and not worth it.", "label": "negative", "language_style": "english", "tone": "sarcastic"}
     ]
 
     correct = 0
