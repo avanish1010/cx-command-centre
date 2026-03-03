@@ -60,6 +60,12 @@
             gap: 12px;
             margin-bottom: 12px;
         }
+        .snapshot-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
         .panel {
             background: var(--card);
             border: 1px solid var(--line);
@@ -92,7 +98,17 @@
             color: var(--muted);
             font-size: 12px;
         }
-        @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+        .snapshot-list {
+            margin: 0;
+            padding-left: 18px;
+            color: #1f395f;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        @media (max-width: 980px) {
+            .grid { grid-template-columns: 1fr; }
+            .snapshot-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -145,6 +161,33 @@
                     </tr>
                     {% endfor %}
                 </table>
+            </div>
+        </section>
+
+        <section class="snapshot-grid">
+            <div class="panel">
+                <h2>Languages Covered</h2>
+                <ol class="snapshot-list">
+                    {% for label, _ in language_rows %}
+                    <li>{{ label }}</li>
+                    {% endfor %}
+                </ol>
+            </div>
+            <div class="panel">
+                <h2>Overall Metrics</h2>
+                <ol class="snapshot-list">
+                    <li><strong>accuracy_percent:</strong> {{ payload.accuracy_percent }}%</li>
+                    <li><strong>benchmark_size:</strong> {{ payload.benchmark_size }}</li>
+                    <li><strong>meets_target:</strong> {{ payload.meets_target }}</li>
+                </ol>
+            </div>
+            <div class="panel">
+                <h2>Tone Metrics</h2>
+                <ol class="snapshot-list">
+                    {% for label, value in tone_rows %}
+                    <li><strong>{{ label }}:</strong> {{ value }}%</li>
+                    {% endfor %}
+                </ol>
             </div>
         </section>
 

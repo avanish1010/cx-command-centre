@@ -2754,8 +2754,30 @@ def evaluate_sentiment():
 @app.route("/evaluate/sentiment/view")
 def evaluate_sentiment_view():
     payload = evaluate_sentiment().get_json()
-    language_rows = sorted(payload.get("language_style_accuracy_percent", {}).items(), key=lambda kv: kv[0])
-    tone_rows = sorted(payload.get("tone_accuracy_percent", {}).items(), key=lambda kv: kv[0])
+    language_order = [
+        ("english", "English"),
+        ("hinglish", "Hinglish"),
+        ("hindi", "Hindi"),
+        ("spanish", "Spanish"),
+        ("french", "French"),
+        ("german", "German"),
+        ("portuguese", "Portuguese"),
+        ("italian", "Italian"),
+        ("arabic", "Arabic"),
+        ("code_mixed", "Code-mixed"),
+    ]
+    tone_order = [
+        ("direct", "Direct"),
+        ("emphatic", "Emphatic"),
+        ("mixed", "Mixed"),
+        ("nuanced", "Nuanced"),
+        ("sarcastic", "Sarcastic"),
+    ]
+
+    lang_map = payload.get("language_style_accuracy_percent", {})
+    tone_map = payload.get("tone_accuracy_percent", {})
+    language_rows = [(label, lang_map.get(key)) for key, label in language_order if key in lang_map]
+    tone_rows = [(label, tone_map.get(key)) for key, label in tone_order if key in tone_map]
     return render_template(
         "sentiment_evaluation.html",
         payload=payload,
