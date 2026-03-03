@@ -232,14 +232,20 @@ def _audit(action, target_email=None, metadata=None, actor_email=None):
 
 
 def _bootstrap_superadmin_if_needed():
-    existing_admin = User.query.filter_by(role=ROLE_SUPERADMIN).first()
-    if existing_admin:
-        return
-
     email = BOOTSTRAP_SUPERADMIN_EMAIL
     password = BOOTSTRAP_SUPERADMIN_PASSWORD
     if not email or not password:
         app.logger.warning("No superadmin exists and bootstrap credentials are not configured.")
+        return
+
+    user = User.query.filter_by(email=email).first()
+    if user:
+        user.password_hash = generate_password_hash(password)
+        user.role = ROLE_SUPERADMIN
+        user.is_active = True
+        user.force_password_reset = False
+        db.session.commit()
+        _audit("bootstrap_superadmin_updated", target_email=email, metadata={"role": ROLE_SUPERADMIN}, actor_email="system")
         return
 
     user = User(
