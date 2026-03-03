@@ -1,4 +1,5 @@
 import re
+import unicodedata
 
 
 NEGATIVE_TERMS = {
@@ -8,7 +9,11 @@ NEGATIVE_TERMS = {
     "irritation", "burning", "itching", "fraud", "expensive", "overpriced",
     "not worth", "worse", "never again", "pathetic", "hate",
     # Hinglish / Indic-English social terms
-    "bekaar", "bakwas", "ghatiya", "dhokha", "nakli", "mehenga", "kharab"
+    "bekaar", "bakwas", "ghatiya", "dhokha", "nakli", "mehenga", "kharab",
+    # Hindi (Devanagari)
+    "बेकार", "घटिया", "खराब", "नकली", "महंगा", "धोखा", "देरी", "निराश",
+    # Spanish
+    "malo", "peor", "horrible", "falso", "caro", "tarde", "tarda", "estafa", "reembolso"
 }
 
 POSITIVE_TERMS = {
@@ -16,12 +21,16 @@ POSITIVE_TERMS = {
     "worth", "premium", "authentic", "fast", "recommended", "works", "effective",
     "awesome", "best", "fantastic", "perfect",
     # Hinglish / Indic-English social terms
-    "accha", "mast", "badhiya", "sahi", "theek", "thik"
+    "accha", "mast", "badhiya", "sahi", "theek", "thik", "resolve",
+    # Hindi (Devanagari)
+    "अच्छा", "बहुतिया", "बढ़िया", "शानदार", "संतुष्ट", "तेज", "असली",
+    # Spanish
+    "bueno", "buena", "excelente", "genial", "feliz", "satisfecho", "autentico", "auténtico"
 }
 
 INTENSIFIERS = {"very", "extremely", "highly", "super", "too", "so"}
-NEGATORS = {"not", "never", "no", "nahi", "nahin", "mat"}
-CONTRAST_MARKERS = {"but", "however", "though", "although", "lekin", "par"}
+NEGATORS = {"not", "never", "no", "nahi", "nahin", "mat", "nunca", "ni", "नहीं", "मत"}
+CONTRAST_MARKERS = {"but", "however", "though", "although", "lekin", "par", "pero", "लेकिन"}
 
 NEUTRAL_PHRASES = (
     r"\bnot bad\b",
@@ -30,17 +39,67 @@ NEUTRAL_PHRASES = (
     r"\bnothing special\b",
     r"\bjust average\b",
     r"\bokay\b",
+    r"\baverage\b",
+    r"ठीक है",
+    r"कुछ खास नहीं",
+    r"regular",
+    r"normal",
+    r"mas o menos",
+    r"más o menos",
+)
+
+NEGATIVE_PHRASES = (
+    "no response",
+    "not worth",
+    "never again",
+    "waste of money",
+    "late delivery",
+    "delayed delivery",
+    "customer support not responding",
+    "sin respuesta",
+    "no vale la pena",
+    "muy caro",
+    "muy mala",
+    "बहुत खराब",
+    "कोई जवाब नहीं",
+    "पैसे की बर्बादी",
+    "बहुत महंगा",
+)
+
+POSITIVE_PHRASES = (
+    "highly recommended",
+    "very good",
+    "works perfectly",
+    "authentic item",
+    "fast delivery",
+    "muy bueno",
+    "excelente producto",
+    "muy satisfecho",
+    "बहुत अच्छा",
+    "बहुत बढ़िया",
+    "बहुतिया",
+    "संतुष्ट हूं",
 )
 
 SARCASM_POSITIVE_CUES = {"great", "awesome", "amazing", "fantastic", "perfect", "love"}
 SARCASM_NEGATIVE_CUES = {
     "delay", "delayed", "late", "refund", "broken", "damaged",
-    "worst", "pathetic", "disappointed", "again", "another"
+    "worst", "pathetic", "disappointed", "again", "another", "useless", "fake", "counterfeit"
 }
+
+NON_FLIPPABLE_NEGATIVE_TOKENS = {"refund", "return", "reembolso"}
 
 
 def _tokenize(text):
-    return re.findall(r"[a-zA-Z']+", (text or "").lower())
+    # Script-agnostic tokenizer: normalize, split by whitespace, strip punctuation.
+    normalized = unicodedata.normalize("NFKC", text or "").lower()
+    raw_tokens = normalized.split()
+    tokens = []
+    for tok in raw_tokens:
+        clean_tok = tok.strip(".,!?;:\"'()[]{}<>/\\|-_`~@#$%^&*+=…।॥")
+        if clean_tok and not clean_tok.isdigit():
+            tokens.append(clean_tok)
+    return tokens
 
 
 def _has_neutral_phrase(text_value):
@@ -64,10 +123,22 @@ def analyze_sentiment(text):
     if _has_neutral_phrase(raw_text):
         return {"sentiment": "neutral", "score": 0.0, "confidence": 0.72}
 
+    lower_text = raw_text.lower()
     score = 0.0
     positive_hits = 0
     negative_hits = 0
     has_contrast = False
+
+    # Multi-word phrase cues improve tone and multilingual reliability.
+    phrase_positive_hits = sum(1 for phrase in POSITIVE_PHRASES if phrase in lower_text)
+    phrase_negative_hits = sum(1 for phrase in NEGATIVE_PHRASES if phrase in lower_text)
+    if phrase_positive_hits:
+        positive_hits += phrase_positive_hits
+        score += phrase_positive_hits * 1.2
+    if phrase_negative_hits:
+        negative_hits += phrase_negative_hits
+        score -= phrase_negative_hits * 1.2
+
     for idx, tok in enumerate(tokens):
         prev = tokens[idx - 1] if idx > 0 else ""
         prev2 = tokens[idx - 2] if idx > 1 else ""
@@ -84,7 +155,10 @@ def analyze_sentiment(text):
             score += (-1.0 if is_negated else 1.0) * boost
         elif tok in NEGATIVE_TERMS:
             negative_hits += 1
-            score += (1.0 if is_negated else -1.0) * boost
+            if tok in NON_FLIPPABLE_NEGATIVE_TOKENS:
+                score += -1.0 * boost
+            else:
+                score += (1.0 if is_negated else -1.0) * boost
 
     # Tone handling: mixed clauses around "but/however/lekin" are often neutral.
     if has_contrast and positive_hits > 0 and negative_hits > 0 and abs(score) <= 1.5:
@@ -93,6 +167,8 @@ def analyze_sentiment(text):
     # Sarcasm handling: positive words used with explicit negative event context.
     if _is_sarcastic_negative(tokens) and negative_hits > 0:
         score = min(score, -1.2)
+    elif positive_hits > 0 and negative_hits > 0 and {"useless", "fake", "counterfeit", "pathetic", "worst"}.intersection(set(tokens)):
+        score = min(score, -0.8)
 
     # Normalize to [-1, 1] with lightweight scaling.
     normalized = max(-1.0, min(1.0, score / 4.0))
