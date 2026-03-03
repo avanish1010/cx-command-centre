@@ -2534,41 +2534,85 @@ def evaluate_classifier():
 @app.route("/evaluate/sentiment")
 def evaluate_sentiment():
     benchmark = [
-        {"text": "Product quality is amazing and delivery was fast", "label": "positive"},
-        {"text": "Worst packaging ever, totally disappointed", "label": "negative"},
-        {"text": "Support has no response for refund", "label": "negative"},
-        {"text": "The product is okay, nothing special", "label": "neutral"},
-        {"text": "Bahut accha product, mast results", "label": "positive"},
-        {"text": "Ye bekaar hai, bilkul pasand nahi aaya", "label": "negative"},
-        {"text": "Delivery late but quality is good", "label": "neutral"},
-        {"text": "Overpriced and not worth the money", "label": "negative"},
-        {"text": "Authentic item and works perfectly", "label": "positive"},
-        {"text": "I got rash and irritation after use", "label": "negative"},
-        {"text": "Not bad overall", "label": "neutral"},
-        {"text": "Customer service was great and helpful", "label": "positive"}
+        # English - direct tone
+        {"text": "Product quality is amazing and delivery was fast", "label": "positive", "language_style": "english", "tone": "direct"},
+        {"text": "Worst packaging ever, totally disappointed", "label": "negative", "language_style": "english", "tone": "direct"},
+        {"text": "The product is okay, nothing special", "label": "neutral", "language_style": "english", "tone": "direct"},
+        {"text": "Customer service was great and helpful", "label": "positive", "language_style": "english", "tone": "direct"},
+        {"text": "Overpriced and not worth the money", "label": "negative", "language_style": "english", "tone": "direct"},
+        {"text": "Not bad overall", "label": "neutral", "language_style": "english", "tone": "nuanced"},
+
+        # Hinglish / Roman Hindi
+        {"text": "Bahut accha product, mast results", "label": "positive", "language_style": "hinglish", "tone": "direct"},
+        {"text": "Ye bekaar hai, bilkul pasand nahi aaya", "label": "negative", "language_style": "hinglish", "tone": "direct"},
+        {"text": "Service sahi thi but delivery late tha", "label": "neutral", "language_style": "hinglish", "tone": "mixed"},
+        {"text": "Quality ghatiya nikli, pura dhokha", "label": "negative", "language_style": "hinglish", "tone": "direct"},
+        {"text": "Packaging badhiya hai aur product sahi chal raha", "label": "positive", "language_style": "hinglish", "tone": "direct"},
+        {"text": "Itna mehenga hai but result theek tha", "label": "neutral", "language_style": "hinglish", "tone": "mixed"},
+
+        # Code-mixed social tone (sarcasm/complaint/emphasis)
+        {"text": "Great job, another delayed order. Awesome.", "label": "negative", "language_style": "code_mixed", "tone": "sarcastic"},
+        {"text": "Love the formula, but refund support is pathetic", "label": "negative", "language_style": "code_mixed", "tone": "mixed"},
+        {"text": "Super happy with results, totally recommended", "label": "positive", "language_style": "code_mixed", "tone": "emphatic"},
+        {"text": "The item is authentic and effective, very satisfied", "label": "positive", "language_style": "code_mixed", "tone": "direct"},
+        {"text": "Delivery was late but product quality is good", "label": "neutral", "language_style": "code_mixed", "tone": "mixed"},
+        {"text": "Not terrible, not great, just average", "label": "neutral", "language_style": "code_mixed", "tone": "nuanced"},
+
+        # Additional robustness samples
+        {"text": "I got rash and irritation after use", "label": "negative", "language_style": "english", "tone": "direct"},
+        {"text": "Support has no response for refund", "label": "negative", "language_style": "english", "tone": "direct"},
+        {"text": "Works perfectly and feels premium", "label": "positive", "language_style": "english", "tone": "direct"},
+        {"text": "Never again, absolute waste of money", "label": "negative", "language_style": "english", "tone": "emphatic"},
+        {"text": "Fast delivery and authentic item", "label": "positive", "language_style": "english", "tone": "direct"},
+        {"text": "Quality changed this time, somewhat disappointed", "label": "negative", "language_style": "english", "tone": "nuanced"}
     ]
 
     correct = 0
     details = []
+    language_stats = {}
+    tone_stats = {}
+
+    def _bump(stats, key, matched):
+        if key not in stats:
+            stats[key] = {"total": 0, "correct": 0}
+        stats[key]["total"] += 1
+        if matched:
+            stats[key]["correct"] += 1
+
     for case in benchmark:
         pred = analyze_sentiment(case["text"])
         matched = pred["sentiment"] == case["label"]
         if matched:
             correct += 1
+        _bump(language_stats, case["language_style"], matched)
+        _bump(tone_stats, case["tone"], matched)
         details.append({
             "text": case["text"],
             "expected": case["label"],
             "predicted": pred["sentiment"],
             "score": pred["score"],
-            "match": matched
+            "match": matched,
+            "language_style": case["language_style"],
+            "tone": case["tone"]
         })
 
+    language_accuracy = {
+        key: round((value["correct"] / value["total"]) * 100, 2) if value["total"] else 0.0
+        for key, value in language_stats.items()
+    }
+    tone_accuracy = {
+        key: round((value["correct"] / value["total"]) * 100, 2) if value["total"] else 0.0
+        for key, value in tone_stats.items()
+    }
     accuracy = round((correct / len(benchmark)) * 100, 2)
     return jsonify({
         "benchmark_size": len(benchmark),
         "accuracy_percent": accuracy,
         "target_percent": 85,
         "meets_target": accuracy >= 85,
+        "language_style_accuracy_percent": language_accuracy,
+        "tone_accuracy_percent": tone_accuracy,
+        "meets_language_tone_target": all(v >= 85 for v in language_accuracy.values()) and all(v >= 85 for v in tone_accuracy.values()),
         "results": details
     })
 
