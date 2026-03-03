@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: cx-command-centre
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --chdir /opt/render/project/src app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4
+    healthCheckPath: /login
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: SUPERADMIN_EMAIL
+        sync: false
+      - key: SUPERADMIN_PASSWORD
+        sync: false
+      - key: AUTO_INGEST_ON_BOOT
+        value: "false"
+      - key: AUTO_INGEST_INTERVAL_MINUTES
+        value: "360"

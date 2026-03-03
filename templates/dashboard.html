@@ -1,0 +1,1639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brand Reputation Command Centre</title>
+    <style>
+        :root {
+            --bg: #f6f8fc;
+            --surface: #ffffff;
+            --surface-soft: #f4f6fb;
+            --text: #111827;
+            --text-muted: #64748b;
+            --line: #dbe3f0;
+            --navy: #3f4f66;
+            --blue: #8AAAE5;
+            --amber: #D9A66B;
+            --rose: #D89AB4;
+            --ok: #7BA88A;
+            --shadow: 0 10px 24px rgba(15, 39, 71, 0.08);
+        }
+
+        body {
+            background: radial-gradient(circle at top right, #dbeafe 0%, var(--bg) 40%);
+            color: var(--text);
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 28px;
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, var(--navy), #1e3a8a);
+            color: #f8fafc;
+            border-radius: 18px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            margin-bottom: 18px;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: 28px;
+            letter-spacing: 0.3px;
+        }
+
+        .hero p {
+            margin: 10px 0 0 0;
+            color: #dbeafe;
+        }
+
+        .grid {
+            display: grid;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .kpi-grid {
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        }
+
+        .kpi-card {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            padding: 16px;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .kpi-label {
+            color: var(--text-muted);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 8px;
+        }
+
+        .kpi-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--navy);
+        }
+
+        .main-grid {
+            grid-template-columns: 1.2fr 1fr;
+            align-items: start;
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            padding: 18px;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        .panel h2 {
+            margin: 0 0 14px 0;
+            color: var(--navy);
+            font-size: 18px;
+        }
+
+        .brand-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .split-title {
+            margin: 0 0 10px 0;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+
+        .brand-card {
+            background: var(--surface-soft);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .brand-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(30, 58, 138, 0.12);
+        }
+
+        .brand-name {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .brand-meta {
+            margin-top: 4px;
+        }
+
+        .health-pill {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 999px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .health-pill.strong {
+            color: #166534;
+            background: #dcfce7;
+            border: 1px solid #bbf7d0;
+        }
+
+        .health-pill.watch {
+            color: #92400e;
+            background: #fef3c7;
+            border: 1px solid #fde68a;
+        }
+
+        .health-pill.risk {
+            color: #9f1239;
+            background: #ffe4e6;
+            border: 1px solid #fecdd3;
+        }
+
+        .score-wrap {
+            text-align: right;
+        }
+
+        .score {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--navy);
+        }
+
+        .trend {
+            font-size: 12px;
+            margin-top: 2px;
+            font-weight: 600;
+        }
+
+        .trend.up {
+            color: var(--rose);
+        }
+
+        .trend.down {
+            color: var(--ok);
+        }
+
+        .trend.flat {
+            color: var(--text-muted);
+        }
+
+        .alert-card {
+            border-radius: 10px;
+            margin-bottom: 10px;
+            padding: 12px;
+            border: 1px solid transparent;
+            background: #fff;
+        }
+
+        .alert-head {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        .alert-meta {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .critical {
+            border-color: #fecdd3;
+            background: #fff1f2;
+        }
+
+        .high {
+            border-color: #fde68a;
+            background: #fffbeb;
+        }
+
+        .watch {
+            border-color: #bfdbfe;
+            background: #eff6ff;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        th, td {
+            padding: 9px 10px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        th {
+            background: #f1f5f9;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        td:last-child, th:last-child {
+            text-align: right;
+        }
+
+        .channels {
+            display: grid;
+            gap: 8px;
+        }
+
+        .channel-item {
+            background: var(--surface-soft);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 10px;
+        }
+
+        .channel-head {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        .channel-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 99px;
+            overflow: hidden;
+        }
+
+        .channel-bar span {
+            display: block;
+            height: 100%;
+            background: linear-gradient(90deg, var(--blue), #60a5fa);
+        }
+
+        .brief {
+            line-height: 1.65;
+            color: #0f172a;
+            white-space: pre-line;
+        }
+
+        .neg-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        }
+
+        .neg-channel {
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 12px;
+            background: #f8fafc;
+        }
+
+        .neg-head {
+            margin: 0 0 10px 0;
+            font-size: 15px;
+            color: var(--navy);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .neg-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #dbeafe;
+            font-size: 15px;
+        }
+
+        .neg-item {
+            padding: 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #ffffff;
+            margin-bottom: 8px;
+        }
+
+        .neg-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .neg-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .neg-meta {
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        .neg-rank {
+            font-size: 12px;
+            font-weight: 700;
+            color: #1e3a8a;
+            background: #dbeafe;
+            border-radius: 999px;
+            padding: 2px 8px;
+        }
+
+        .neg-text {
+            font-size: 13px;
+            color: #0f172a;
+            line-height: 1.45;
+        }
+
+        .footer-note {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 12px;
+        }
+
+        .chart-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            margin-bottom: 16px;
+        }
+
+        .main-chart-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .chart-card {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 14px;
+            box-shadow: var(--shadow);
+        }
+
+        .chart-card h3 {
+            margin: 0 0 10px 0;
+            color: var(--navy);
+            font-size: 15px;
+        }
+
+        .chart-canvas-wrap {
+            position: relative;
+            height: 280px;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 4px 0 14px;
+        }
+
+        .filter-btn {
+            border: 1px solid var(--line);
+            background: #ffffff;
+            color: var(--text);
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--blue);
+            background: #f7f9ff;
+        }
+
+        .filter-btn.active {
+            border-color: var(--blue);
+            background: #eef3ff;
+            color: #3f4f66;
+        }
+
+        .panel-action-row {
+            margin-top: 10px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .panel-action-btn {
+            display: inline-block;
+            text-decoration: none;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 8px 14px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--navy);
+            background: #f7f9ff;
+            transition: all 0.2s ease;
+        }
+
+        .panel-action-btn:hover {
+            border-color: var(--blue);
+            background: #eef3ff;
+        }
+
+        @media (max-width: 960px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .main-chart-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <section class="hero">
+            <h1>Brand Reputation Command Centre</h1>
+            <p>Live sentiment health, issue concentrations, and channel-level risk signals.</p>
+            <div class="panel-action-row" style="margin-top:12px;justify-content:flex-start;gap:8px;">
+                <a class="panel-action-btn" href="/" target="_blank" rel="noopener noreferrer">Home</a>
+                {% if current_user and current_user.role == "superadmin" %}
+                <a class="panel-action-btn" href="/admin/users" target="_blank" rel="noopener noreferrer">Admin Users</a>
+                <a class="panel-action-btn" href="/admin/operations" target="_blank" rel="noopener noreferrer">Operations</a>
+                {% endif %}
+                <a class="panel-action-btn" href="/logout">Logout</a>
+            </div>
+        </section>
+
+        <section class="grid kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Total Mentions</div>
+                <div class="kpi-value">{{ total_mentions }}</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Average Negative Rate</div>
+                <div class="kpi-value">{{ avg_negative_rate }}%</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Active Brands</div>
+                <div class="kpi-value">{{ active_brands }}</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Critical Alerts ({{ alert_scope_label }})</div>
+                <div class="kpi-value" style="color: var(--rose)">{{ scoped_critical_alerts }}</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">High Alerts ({{ alert_scope_label }})</div>
+                <div class="kpi-value" style="color: var(--amber)">{{ scoped_high_alerts }}</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Watch Alerts ({{ alert_scope_label }})</div>
+                <div class="kpi-value" style="color: var(--blue)">{{ scoped_watch_alerts }}</div>
+            </div>
+        </section>
+
+        {% if view_mode in ["all", "main"] %}
+        <section class="grid main-grid">
+            <div class="panel">
+                <h2>{% if view_mode == "all" %}Overall Dashboard{% else %}Main Dashboard (Our Brand){% endif %}</h2>
+                <div class="split-title">{% if view_mode == "all" %}Brand Health (All Brands){% else %}Brand Health{% endif %}</div>
+                <div class="brand-list">
+                    {% if view_mode == "all" %}
+                        {% if brand_cards %}
+                            {% for item in brand_cards %}
+                            <div class="brand-card">
+                                <div>
+                                    <div class="brand-name">{{ item.name }}</div>
+                                    <div class="brand-meta">
+                                        <span class="health-pill {{ item.health_class }}">{{ item.health_band }}</span>
+                                    </div>
+                                </div>
+                                <div class="score-wrap">
+                                    <div class="score">{{ item.score }}/100</div>
+                                        {% if item.trend_delta >= 1.0 %}
+                                            <div class="trend up">Risk rising (+{{ "%.2f"|format(item.trend_delta|abs) }}pp, 3-day trend)</div>
+                                        {% elif item.trend_delta <= -1.0 %}
+                                            <div class="trend down">Risk improving ({{ "%.2f"|format(item.trend_delta|abs) }}pp, 3-day trend)</div>
+                                        {% else %}
+                                            <div class="trend flat">Stable (no material 3-day shift)</div>
+                                        {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                        <div class="brand-card">
+                            <div class="brand-name">No brand data available.</div>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        {% if primary_brand_card %}
+                        <div class="brand-card">
+                            <div>
+                                <div class="brand-name">{{ primary_brand_card.name }}</div>
+                                <div class="brand-meta">
+                                    <span class="health-pill {{ primary_brand_card.health_class }}">{{ primary_brand_card.health_band }}</span>
+                                </div>
+                            </div>
+                            <div class="score-wrap">
+                                <div class="score">{{ primary_brand_card.score }}/100</div>
+                                    {% if primary_brand_card.trend_delta >= 1.0 %}
+                                        <div class="trend up">Risk rising (+{{ "%.2f"|format(primary_brand_card.trend_delta|abs) }}pp, 3-day trend)</div>
+                                    {% elif primary_brand_card.trend_delta <= -1.0 %}
+                                        <div class="trend down">Risk improving ({{ "%.2f"|format(primary_brand_card.trend_delta|abs) }}pp, 3-day trend)</div>
+                                    {% else %}
+                                        <div class="trend flat">Stable (no material 3-day shift)</div>
+                                    {% endif %}
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="brand-card">
+                            <div class="brand-name">No primary brand data available.</div>
+                        </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>{% if view_mode == "all" %}Overall Dashboard{% else %}Main Dashboard (Our Brand){% endif %}</h2>
+                <div class="split-title">
+                    {% if view_mode == "all" %}
+                        Active Risk Alerts - All Brands
+                    {% else %}
+                        Active Risk Alerts{% if primary_brand_name %} - {{ primary_brand_name }}{% endif %}
+                    {% endif %}
+                </div>
+                {% set visible_alerts = overall_alerts if view_mode == "all" else primary_alerts %}
+                {% if visible_alerts %}
+                    {% for alert in visible_alerts %}
+                        <div class="alert-card {% if alert.alert_level == 'Critical' %}critical{% elif alert.alert_level == 'High' %}high{% else %}watch{% endif %}">
+                            <div class="alert-head">
+                                <span>{{ alert.issue_type }} - {{ alert.brand_name }}</span>
+                                <span>{{ alert.alert_level }}</span>
+                            </div>
+                            <div class="alert-meta">
+                                {{ alert.channel }} | {{ alert.spike_type }} | Influence x{{ "%.2f"|format(alert.influence_factor or 1) }} | Risk {{ "%.1f"|format(alert.risk_score or 0) }} | Z {{ "%.2f"|format(alert.z_score or 0) }}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="alert-card watch">
+                        {% if view_mode == "all" %}No active alerts across brands right now.{% else %}No active alerts for our brand right now.{% endif %}
+                    </div>
+                {% endif %}
+                <div class="panel-action-row">
+                    {% if view_mode == "all" %}
+                    <a class="panel-action-btn" href="/detect" target="_blank" rel="noopener noreferrer">Open Our Brand Detect</a>
+                    <a class="panel-action-btn" href="/competitors" target="_blank" rel="noopener noreferrer">Open Competitor Detect</a>
+                    {% else %}
+                    <a class="panel-action-btn" href="/detect" target="_blank" rel="noopener noreferrer">Open Detect</a>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if view_mode == "main" %}
+        <section class="panel">
+            <h2>Main Dashboard Charts</h2>
+            <div class="filter-bar" id="mainChannelFilters">
+                <button class="filter-btn active" type="button" data-channel="All">All</button>
+                {% for channel_name in chart_data.main.channel_filter_options %}
+                <button class="filter-btn" type="button" data-channel="{{ channel_name }}">{{ channel_name }}</button>
+                {% endfor %}
+            </div>
+            <div class="chart-grid main-chart-grid">
+                <div class="chart-card">
+                    <h3>Negative Trend (Overall + Channel)</h3>
+                    <div class="chart-canvas-wrap"><canvas id="mainNegativeTrendChart"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Issue Mix by Channel</h3>
+                    <div class="chart-canvas-wrap"><canvas id="mainIssueChannelChart"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Negative Comments by Channel</h3>
+                    <div class="chart-canvas-wrap"><canvas id="mainNegativeCommentsChart"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>7-Day Negative Momentum Delta</h3>
+                    <div class="chart-canvas-wrap"><canvas id="mainMomentumChart"></canvas></div>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if view_mode == "competitors" %}
+        <section class="grid main-grid">
+            <div class="panel">
+                <h2>Competitor Dashboard</h2>
+                <div class="split-title">Competitor Brand Health</div>
+                <div class="brand-list">
+                    {% if competitor_brand_cards %}
+                        {% for item in competitor_brand_cards %}
+                        <div class="brand-card">
+                            <div>
+                                <div class="brand-name">{{ item.name }}</div>
+                                <div class="brand-meta">
+                                    <span class="health-pill {{ item.health_class }}">{{ item.health_band }}</span>
+                                </div>
+                            </div>
+                            <div class="score-wrap">
+                                <div class="score">{{ item.score }}/100</div>
+                                {% if item.trend_delta >= 1.0 %}
+                                    <div class="trend up">Risk rising (+{{ "%.2f"|format(item.trend_delta|abs) }}pp, 3-day trend)</div>
+                                {% elif item.trend_delta <= -1.0 %}
+                                    <div class="trend down">Risk improving ({{ "%.2f"|format(item.trend_delta|abs) }}pp, 3-day trend)</div>
+                                {% else %}
+                                    <div class="trend flat">Stable (no material 3-day shift)</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="brand-card">
+                            <div class="brand-name">No competitor brand data available.</div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Competitor Dashboard</h2>
+                <div class="split-title">Competitor Risk Alerts</div>
+                {% if competitor_alerts %}
+                    {% for alert in competitor_alerts %}
+                        <div class="alert-card {% if alert.alert_level == 'Critical' %}critical{% elif alert.alert_level == 'High' %}high{% else %}watch{% endif %}">
+                            <div class="alert-head">
+                                <span>{{ alert.issue_type }} - {{ alert.brand_name }}</span>
+                                <span>{{ alert.alert_level }}</span>
+                            </div>
+                            <div class="alert-meta">
+                                {{ alert.channel }} | {{ alert.spike_type }} | Influence x{{ "%.2f"|format(alert.influence_factor or 1) }} | Risk {{ "%.1f"|format(alert.risk_score or 0) }} | Z {{ "%.2f"|format(alert.z_score or 0) }}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="alert-card watch">No competitor alerts right now.</div>
+                {% endif %}
+                <div class="panel-action-row">
+                    <a class="panel-action-btn" href="/competitors" target="_blank" rel="noopener noreferrer">Open Competitor Detect</a>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if view_mode == "competitors" %}
+        <section class="panel">
+            <h2>Competitor Dashboard Charts</h2>
+            <div class="filter-bar" id="competitorChannelFilters">
+                <button class="filter-btn active" type="button" data-channel="All">All</button>
+                {% for channel_name in chart_data.competitors.channel_filter_options %}
+                <button class="filter-btn" type="button" data-channel="{{ channel_name }}">{{ channel_name }}</button>
+                {% endfor %}
+            </div>
+            <div class="chart-grid main-chart-grid">
+                <div class="chart-card">
+                    <h3>Negative Trend Comparison</h3>
+                    <div class="chart-canvas-wrap"><canvas id="competitorTrendChart"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Issue Counts by Brand</h3>
+                    <div class="chart-canvas-wrap"><canvas id="competitorIssueGroupedChart"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Risk Overview by Brand</h3>
+                    <div class="chart-canvas-wrap"><canvas id="competitorRiskOverviewChart"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Channel Share by Brand (%)</h3>
+                    <div class="chart-canvas-wrap"><canvas id="competitorChannelShareChart"></canvas></div>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if view_mode == "all" %}
+        <section class="panel">
+            <h2>Overall Dashboard Charts</h2>
+            <div class="filter-bar" id="overallChannelFilters">
+                <button class="filter-btn active" type="button" data-channel="All">All</button>
+                {% for channel_name in chart_data.overall.channel_filter_options %}
+                <button class="filter-btn" type="button" data-channel="{{ channel_name }}">{{ channel_name }}</button>
+                {% endfor %}
+            </div>
+            <div class="chart-grid main-chart-grid">
+                <div class="chart-card">
+                    <h3>Negative Trend by Brand</h3>
+                    <div class="chart-canvas-wrap"><canvas id="overallNegativeTrendChart"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Issue Mix by Brand</h3>
+                    <div class="chart-canvas-wrap"><canvas id="overallIssueByBrandChart"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Channel Share by Brand (%)</h3>
+                    <div class="chart-canvas-wrap"><canvas id="overallChannelShareChart"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>Risk Overview by Brand</h3>
+                    <div class="chart-canvas-wrap"><canvas id="overallRiskOverviewChart"></canvas></div>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="grid main-grid">
+            <div class="panel">
+                <h2>Issue Heatmap</h2>
+                <table>
+                    <tr>
+                        <th>Brand</th>
+                        {% for issue in issue_taxonomy %}
+                        <th>{{ issue }}</th>
+                        {% endfor %}
+                        <th>Total</th>
+                    </tr>
+                    {% for row in issue_rows %}
+                    <tr>
+                        <td><strong>{{ row.brand }}</strong></td>
+                        {% for issue in issue_taxonomy %}
+                        <td>{{ row[issue] }}</td>
+                        {% endfor %}
+                        <td><strong>{{ row.total }}</strong></td>
+                    </tr>
+                    {% endfor %}
+                    <tr>
+                        <td><strong>Total</strong></td>
+                        {% set ns = namespace(total=0) %}
+                        {% for issue in issue_taxonomy %}
+                        <td><strong>{{ issue_totals[issue] }}</strong></td>
+                        {% set ns.total = ns.total + issue_totals[issue] %}
+                        {% endfor %}
+                        <td><strong>{{ ns.total }}</strong></td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="panel">
+                <h2>Channel Activity</h2>
+                <div class="channels">
+                    {% for channel in channel_cards %}
+                        <div class="channel-item">
+                            <div class="channel-head">
+                                <span>{{ channel.name }}</span>
+                                <span>{{ channel.count }} mentions ({{ channel.share }}%)</span>
+                            </div>
+                            <div class="channel-bar">
+                                <span style="width: {{ channel.share }}%"></span>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="footer-note">Share is based on total ingested review mentions.</div>
+            </div>
+        </section>
+
+        {% if view_mode in ["all", "main"] %}
+        <section class="panel">
+            <h2>AI Daily Brief</h2>
+            <div class="brief">{{ brief }}</div>
+        </section>
+        {% endif %}
+
+        {% if view_mode == "main" %}
+        <section class="panel">
+            <h2>Top {{ top_negative_limit }} Negative Comments by Platform (Our Brand)</h2>
+            {% if primary_top_negative_comments %}
+                <div class="neg-grid">
+                    {% for section in primary_top_negative_comments %}
+                        <div class="neg-channel">
+                            <div class="neg-head">
+                                <span class="neg-icon">{{ section.icon }}</span>
+                                <span>{{ section.name }}</span>
+                            </div>
+                            {% for comment in section.comments %}
+                                <div class="neg-item">
+                                    <div class="neg-top">
+                                        <div class="neg-meta">{{ comment.brand }} | {{ comment.product }}</div>
+                                        <div class="neg-rank">#{{ loop.index }}</div>
+                                    </div>
+                                    <div class="neg-meta">{{ comment.when }}</div>
+                                    <div class="neg-text">{{ comment.text[:180] }}{% if comment.text|length > 180 %}...{% endif %}</div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="footer-note">No negative comments available yet.</div>
+            {% endif %}
+            <div class="footer-note"><a href="{{ request.path }}?top_negative=10" target="_blank" rel="noopener noreferrer">Open top 10 comments per platform</a></div>
+        </section>
+        {% endif %}
+
+        {% if view_mode == "competitors" %}
+        <section class="panel">
+            <h2>Top {{ top_negative_limit }} Negative Comments by Platform (Competitors)</h2>
+            {% if competitor_top_negative_comments %}
+                <div class="neg-grid">
+                    {% for section in competitor_top_negative_comments %}
+                        <div class="neg-channel">
+                            <div class="neg-head">
+                                <span class="neg-icon">{{ section.icon }}</span>
+                                <span>{{ section.name }}</span>
+                            </div>
+                            {% for comment in section.comments %}
+                                <div class="neg-item">
+                                    <div class="neg-top">
+                                        <div class="neg-meta">{{ comment.brand }} | {{ comment.product }}</div>
+                                        <div class="neg-rank">#{{ loop.index }}</div>
+                                    </div>
+                                    <div class="neg-meta">{{ comment.when }}</div>
+                                    <div class="neg-text">{{ comment.text[:180] }}{% if comment.text|length > 180 %}...{% endif %}</div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="footer-note">No negative competitor comments available yet.</div>
+            {% endif %}
+            <div class="footer-note"><a href="{{ request.path }}?top_negative=10" target="_blank" rel="noopener noreferrer">Open top 10 comments per platform</a></div>
+        </section>
+        {% endif %}
+
+        {% if view_mode == "all" %}
+        <section class="panel">
+            <h2>Top {{ top_negative_limit }} Negative Comments by Platform (All Brands)</h2>
+            {% if overall_top_negative_comments %}
+                <div class="neg-grid">
+                    {% for section in overall_top_negative_comments %}
+                        <div class="neg-channel">
+                            <div class="neg-head">
+                                <span class="neg-icon">{{ section.icon }}</span>
+                                <span>{{ section.name }}</span>
+                            </div>
+                            {% for comment in section.comments %}
+                                <div class="neg-item">
+                                    <div class="neg-top">
+                                        <div class="neg-meta">{{ comment.brand }} | {{ comment.product }}</div>
+                                        <div class="neg-rank">#{{ loop.index }}</div>
+                                    </div>
+                                    <div class="neg-meta">{{ comment.when }}</div>
+                                    <div class="neg-text">{{ comment.text[:180] }}{% if comment.text|length > 180 %}...{% endif %}</div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="footer-note">No negative comments available yet.</div>
+            {% endif %}
+            <div class="footer-note"><a href="{{ request.path }}?top_negative=10" target="_blank" rel="noopener noreferrer">Open top 10 comments per platform</a></div>
+        </section>
+        {% endif %}
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const chartData = {{ chart_data|tojson }};
+        const mainCharts = {};
+        const competitorCharts = {};
+        const overallCharts = {};
+
+        function baseOptions() {
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: "nearest", intersect: false },
+                plugins: {
+                    legend: { position: "bottom" },
+                    tooltip: { enabled: true }
+                }
+            };
+        }
+
+        function makeChart(id, config) {
+            const el = document.getElementById(id);
+            if (!el) return null;
+            const ctx = el.getContext("2d");
+            return new Chart(ctx, config);
+        }
+
+        function deepCopy(v) {
+            return JSON.parse(JSON.stringify(v));
+        }
+
+        function averageSeries(seriesList) {
+            if (!seriesList.length) return [];
+            const maxLen = Math.max(...seriesList.map(s => s.length));
+            const output = [];
+            for (let i = 0; i < maxLen; i++) {
+                const vals = seriesList.map(s => s[i]).filter(v => v !== null && v !== undefined);
+                output.push(vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100 : null);
+            }
+            return output;
+        }
+
+        function seriesForSelection(selectedChannels) {
+            const main = chartData.main || {};
+            const isAll = !selectedChannels || !selectedChannels.length;
+            if (isAll) {
+                const allNegativeTrend = deepCopy(main.negative_trend || { labels: [], datasets: [] });
+                allNegativeTrend.datasets = (allNegativeTrend.datasets || []).filter(
+                    ds => !(ds.label || "").toLowerCase().includes("(overall)")
+                );
+                return {
+                    negativeTrend: allNegativeTrend,
+                    issueMix: deepCopy(main.issue_channel_mix || { labels: [], datasets: [] }),
+                    negativeCounts: deepCopy(main.channel_negative_counts || { labels: [], data: [] }),
+                    momentum: {
+                        labels: deepCopy((main.negative_momentum_delta || {}).labels || []),
+                        data: deepCopy((main.negative_momentum_delta || {}).data || []),
+                        label: "Delta vs Prior 7-Day Baseline"
+                    }
+                };
+            }
+
+            const negativeTrendBase = main.negative_trend || { labels: [], datasets: [] };
+            const issueMixBase = main.issue_channel_mix || { labels: [], datasets: [] };
+            const negativeCountsBase = main.channel_negative_counts || { labels: [], data: [] };
+            const momentumByChannel = (main.negative_momentum_delta_by_channel || {}).series || {};
+            const momentumLabels = (main.negative_momentum_delta_by_channel || {}).labels || [];
+
+            const negativeTrendDatasets = (negativeTrendBase.datasets || [])
+                .filter(ds => selectedChannels.includes(ds.label))
+                .map(ds => deepCopy(ds));
+
+            if (selectedChannels.length > 1 && negativeTrendDatasets.length > 0) {
+                negativeTrendDatasets.unshift({
+                    label: "Selected Channels (Avg)",
+                    data: averageSeries(negativeTrendDatasets.map(ds => ds.data || [])),
+                    borderColor: "#8AAAE5",
+                    backgroundColor: "rgba(138,170,229,0.2)",
+                    tension: 0.3,
+                    fill: false,
+                    borderDash: [6, 5]
+                });
+            }
+
+            const selectedIdxs = (issueMixBase.labels || [])
+                .map((label, idx) => selectedChannels.includes(label) ? idx : -1)
+                .filter(idx => idx >= 0);
+            const filteredIssueMix = {
+                labels: selectedIdxs.map(idx => issueMixBase.labels[idx]),
+                datasets: (issueMixBase.datasets || []).map(ds => {
+                    const copy = deepCopy(ds);
+                    copy.data = selectedIdxs.map(idx => copy.data[idx] || 0);
+                    return copy;
+                })
+            };
+
+            const filteredNegCounts = {
+                labels: (negativeCountsBase.labels || []).filter(label => selectedChannels.includes(label)),
+                data: (negativeCountsBase.labels || [])
+                    .map((label, idx) => selectedChannels.includes(label) ? (negativeCountsBase.data[idx] || 0) : null)
+                    .filter(v => v !== null)
+            };
+
+            const selectedMomentumSeries = selectedChannels
+                .map(ch => momentumByChannel[ch] || [])
+                .filter(s => s.length > 0);
+            const mergedMomentum = averageSeries(selectedMomentumSeries);
+            const selectionLabel = selectedChannels.length > 1
+                ? `${selectedChannels.join(", ")} Delta vs Prior 7-Day Baseline (Avg)`
+                : `${selectedChannels[0]} Delta vs Prior 7-Day Baseline`;
+
+            return {
+                negativeTrend: {
+                    labels: deepCopy(negativeTrendBase.labels || []),
+                    datasets: negativeTrendDatasets
+                },
+                issueMix: filteredIssueMix,
+                negativeCounts: filteredNegCounts,
+                momentum: {
+                    labels: deepCopy(momentumLabels),
+                    data: deepCopy(mergedMomentum),
+                    label: selectionLabel
+                }
+            };
+        }
+
+        function renderOrUpdateMainCharts(selectedChannels) {
+            const filtered = seriesForSelection(selectedChannels);
+
+            if (document.getElementById("mainNegativeTrendChart")) {
+                if (!mainCharts.negativeTrend) {
+                    mainCharts.negativeTrend = makeChart("mainNegativeTrendChart", {
+                        type: "line",
+                        data: filtered.negativeTrend,
+                        options: {
+                            ...baseOptions(),
+                            scales: {
+                                y: { title: { display: true, text: "Negative %" } }
+                            }
+                        }
+                    });
+                } else {
+                    mainCharts.negativeTrend.data = filtered.negativeTrend;
+                    mainCharts.negativeTrend.update();
+                }
+            }
+
+            if (document.getElementById("mainIssueChannelChart")) {
+                if (!mainCharts.issueMix) {
+                    mainCharts.issueMix = makeChart("mainIssueChannelChart", {
+                        type: "bar",
+                        data: filtered.issueMix,
+                        options: {
+                            ...baseOptions(),
+                            scales: {
+                                x: { stacked: true },
+                                y: { stacked: true, title: { display: true, text: "Mentions" } }
+                            }
+                        }
+                    });
+                } else {
+                    mainCharts.issueMix.data = filtered.issueMix;
+                    mainCharts.issueMix.update();
+                }
+            }
+
+            if (document.getElementById("mainNegativeCommentsChart")) {
+                const negCommentData = {
+                    labels: filtered.negativeCounts.labels,
+                    datasets: [{
+                        label: "Negative Comments",
+                        data: filtered.negativeCounts.data,
+                        backgroundColor: "#E8A0BFcc",
+                        borderColor: "#E8A0BF"
+                    }]
+                };
+                if (!mainCharts.negativeComments) {
+                    mainCharts.negativeComments = makeChart("mainNegativeCommentsChart", {
+                        type: "bar",
+                        data: negCommentData,
+                        options: {
+                            ...baseOptions(),
+                            indexAxis: "y"
+                        }
+                    });
+                } else {
+                    mainCharts.negativeComments.data = negCommentData;
+                    mainCharts.negativeComments.update();
+                }
+            }
+
+            if (document.getElementById("mainMomentumChart")) {
+                const momentumData = {
+                    labels: filtered.momentum.labels,
+                    datasets: [{
+                        label: filtered.momentum.label,
+                        data: filtered.momentum.data,
+                        borderColor: "#9BC8B4",
+                        backgroundColor: "rgba(155,200,180,0.25)",
+                        fill: true,
+                        tension: 0.3
+                    }]
+                };
+                if (!mainCharts.momentum) {
+                    mainCharts.momentum = makeChart("mainMomentumChart", {
+                        type: "line",
+                        data: momentumData,
+                        options: {
+                            ...baseOptions(),
+                            scales: {
+                                y: { title: { display: true, text: "Delta Percentage Points" } }
+                            }
+                        }
+                    });
+                } else {
+                    mainCharts.momentum.data = momentumData;
+                    mainCharts.momentum.update();
+                }
+            }
+        }
+
+        const main = chartData.main || {};
+        if (document.getElementById("mainNegativeTrendChart")) {
+            let selectedChannels = [];
+            renderOrUpdateMainCharts(selectedChannels);
+            const filterWrap = document.getElementById("mainChannelFilters");
+            if (filterWrap) {
+                filterWrap.querySelectorAll(".filter-btn").forEach(btn => {
+                    btn.addEventListener("click", function () {
+                        const channel = this.dataset.channel || "All";
+                        const allBtn = filterWrap.querySelector('.filter-btn[data-channel="All"]');
+                        const channelBtns = Array.from(filterWrap.querySelectorAll('.filter-btn:not([data-channel="All"])'));
+
+                        if (channel === "All") {
+                            selectedChannels = [];
+                            channelBtns.forEach(b => b.classList.remove("active"));
+                            if (allBtn) allBtn.classList.add("active");
+                        } else {
+                            if (allBtn) allBtn.classList.remove("active");
+                            this.classList.toggle("active");
+                            selectedChannels = channelBtns
+                                .filter(b => b.classList.contains("active"))
+                                .map(b => b.dataset.channel);
+                            if (!selectedChannels.length && allBtn) {
+                                allBtn.classList.add("active");
+                            }
+                        }
+
+                        renderOrUpdateMainCharts(selectedChannels);
+                    });
+                });
+            }
+        }
+
+        function mergeLineDatasetsByLabel(datasetLists) {
+            const byLabel = {};
+            datasetLists.forEach(list => {
+                (list || []).forEach(ds => {
+                    if (!byLabel[ds.label]) byLabel[ds.label] = [];
+                    byLabel[ds.label].push(ds);
+                });
+            });
+
+            return Object.entries(byLabel).map(([label, list]) => {
+                const data = averageSeries(list.map(d => d.data || []));
+                const first = list[0] || {};
+                return {
+                    label,
+                    data,
+                    borderColor: first.borderColor || "#8AAAE5",
+                    backgroundColor: first.backgroundColor || "rgba(138,170,229,0.2)",
+                    tension: 0.3,
+                    fill: false
+                };
+            });
+        }
+
+        function mergeBarDatasetsByLabel(datasetLists) {
+            const byLabel = {};
+            datasetLists.forEach(list => {
+                (list || []).forEach(ds => {
+                    if (!byLabel[ds.label]) byLabel[ds.label] = [];
+                    byLabel[ds.label].push(ds);
+                });
+            });
+
+            return Object.entries(byLabel).map(([label, list]) => {
+                const first = list[0] || {};
+                const len = (first.data || []).length;
+                const merged = Array.from({ length: len }, (_, idx) =>
+                    list.reduce((sum, item) => sum + (item.data[idx] || 0), 0)
+                );
+                return {
+                    label,
+                    data: merged,
+                    backgroundColor: first.backgroundColor || "#8AAAE5cc",
+                    borderColor: first.borderColor || "#8AAAE5"
+                };
+            });
+        }
+
+        function competitorDataForSelection(selectedChannels) {
+            const competitors = chartData.competitors || {};
+            const isAll = !selectedChannels || !selectedChannels.length;
+            if (isAll) return deepCopy(competitors);
+
+            const trendLists = selectedChannels.map(ch => ((competitors.trend_by_channel || {}).datasets_by_channel || {})[ch] || []);
+            const issueLists = selectedChannels.map(ch => ((competitors.issue_grouped_by_channel || {}).datasets_by_channel || {})[ch] || []);
+
+            const mergedTrend = {
+                labels: deepCopy((competitors.trend_comparison || {}).labels || []),
+                datasets: mergeLineDatasetsByLabel(trendLists)
+            };
+
+            const mergedIssue = {
+                labels: deepCopy((competitors.issue_grouped || {}).labels || []),
+                datasets: mergeBarDatasetsByLabel(issueLists)
+            };
+
+            const riskByChannel = competitors.risk_overview_by_channel || {};
+            const riskAgg = {};
+            selectedChannels.forEach(ch => {
+                const block = riskByChannel[ch] || { labels: [], avg_risk: [], alert_count: [] };
+                (block.labels || []).forEach((label, idx) => {
+                    if (!riskAgg[label]) riskAgg[label] = { risk_count_weighted: 0, count: 0 };
+                    const avgRisk = block.avg_risk[idx] || 0;
+                    const count = block.alert_count[idx] || 0;
+                    riskAgg[label].risk_count_weighted += avgRisk * count;
+                    riskAgg[label].count += count;
+                });
+            });
+
+            const riskLabels = Object.keys(riskAgg).sort();
+            const mergedRisk = {
+                labels: riskLabels,
+                avg_risk: riskLabels.map(label =>
+                    riskAgg[label].count ? Math.round((riskAgg[label].risk_count_weighted / riskAgg[label].count) * 100) / 100 : 0
+                ),
+                alert_count: riskLabels.map(label => riskAgg[label].count || 0)
+            };
+
+            const shareBase = competitors.channel_share || { labels: [], datasets: [] };
+            const selectedIdxs = (shareBase.labels || [])
+                .map((l, i) => selectedChannels.includes(l) ? i : -1)
+                .filter(i => i >= 0);
+            const mergedShare = {
+                labels: selectedIdxs.map(i => shareBase.labels[i]),
+                datasets: (shareBase.datasets || []).map(ds => {
+                    const slice = selectedIdxs.map(i => ds.data[i] || 0);
+                    const total = slice.reduce((a, b) => a + b, 0);
+                    const normalized = total > 0 ? slice.map(v => Math.round((v / total) * 10000) / 100) : slice;
+                    return {
+                        label: ds.label,
+                        data: normalized,
+                        backgroundColor: ds.backgroundColor
+                    };
+                })
+            };
+
+            return {
+                trend_comparison: mergedTrend,
+                issue_grouped: mergedIssue,
+                issue_radar: mergedIssue,
+                risk_overview: mergedRisk,
+                channel_share: mergedShare
+            };
+        }
+
+        function renderOrUpdateCompetitorCharts(selectedChannels) {
+            const competitors = competitorDataForSelection(selectedChannels);
+
+            if (document.getElementById("competitorTrendChart")) {
+                if (!competitorCharts.trend) {
+                    competitorCharts.trend = makeChart("competitorTrendChart", {
+                        type: "line",
+                        data: competitors.trend_comparison,
+                        options: {
+                            ...baseOptions(),
+                            scales: { y: { title: { display: true, text: "Negative %" } } }
+                        }
+                    });
+                } else {
+                    competitorCharts.trend.data = competitors.trend_comparison;
+                    competitorCharts.trend.update();
+                }
+            }
+
+            if (document.getElementById("competitorIssueGroupedChart")) {
+                if (!competitorCharts.issueGrouped) {
+                    competitorCharts.issueGrouped = makeChart("competitorIssueGroupedChart", {
+                        type: "bar",
+                        data: competitors.issue_grouped,
+                        options: {
+                            ...baseOptions(),
+                            scales: { y: { title: { display: true, text: "Issue Mentions" } } }
+                        }
+                    });
+                } else {
+                    competitorCharts.issueGrouped.data = competitors.issue_grouped;
+                    competitorCharts.issueGrouped.update();
+                }
+            }
+
+            if (document.getElementById("competitorRiskOverviewChart")) {
+                const riskData = {
+                    labels: competitors.risk_overview.labels,
+                    datasets: [
+                        {
+                            type: "bar",
+                            label: "Avg Risk Score",
+                            data: competitors.risk_overview.avg_risk,
+                            backgroundColor: "#8AAAE5cc",
+                            borderColor: "#8AAAE5"
+                        },
+                        {
+                            type: "line",
+                            label: "Alert Count",
+                            data: competitors.risk_overview.alert_count,
+                            borderColor: "#D9A66B",
+                            backgroundColor: "#D9A66B33",
+                            yAxisID: "y1",
+                            tension: 0.3
+                        }
+                    ]
+                };
+
+                if (!competitorCharts.risk) {
+                    competitorCharts.risk = makeChart("competitorRiskOverviewChart", {
+                        data: riskData,
+                        options: {
+                            ...baseOptions(),
+                            scales: {
+                                y: { title: { display: true, text: "Avg Risk" } },
+                                y1: {
+                                    position: "right",
+                                    grid: { drawOnChartArea: false },
+                                    title: { display: true, text: "Alert Count" }
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    competitorCharts.risk.data = riskData;
+                    competitorCharts.risk.update();
+                }
+            }
+
+            if (document.getElementById("competitorChannelShareChart")) {
+                if (!competitorCharts.share) {
+                    competitorCharts.share = makeChart("competitorChannelShareChart", {
+                        type: "bar",
+                        data: competitors.channel_share,
+                        options: {
+                            ...baseOptions(),
+                            scales: {
+                                x: { stacked: true },
+                                y: { stacked: true, title: { display: true, text: "Share %" }, max: 100 }
+                            }
+                        }
+                    });
+                } else {
+                    competitorCharts.share.data = competitors.channel_share;
+                    competitorCharts.share.update();
+                }
+            }
+        }
+
+        if (document.getElementById("competitorTrendChart")) {
+            let selectedCompetitorChannels = [];
+            renderOrUpdateCompetitorCharts(selectedCompetitorChannels);
+
+            const competitorFilterWrap = document.getElementById("competitorChannelFilters");
+            if (competitorFilterWrap) {
+                competitorFilterWrap.querySelectorAll(".filter-btn").forEach(btn => {
+                    btn.addEventListener("click", function () {
+                        const channel = this.dataset.channel || "All";
+                        const allBtn = competitorFilterWrap.querySelector('.filter-btn[data-channel="All"]');
+                        const channelBtns = Array.from(competitorFilterWrap.querySelectorAll('.filter-btn:not([data-channel="All"])'));
+
+                        if (channel === "All") {
+                            selectedCompetitorChannels = [];
+                            channelBtns.forEach(b => b.classList.remove("active"));
+                            if (allBtn) allBtn.classList.add("active");
+                        } else {
+                            if (allBtn) allBtn.classList.remove("active");
+                            this.classList.toggle("active");
+                            selectedCompetitorChannels = channelBtns
+                                .filter(b => b.classList.contains("active"))
+                                .map(b => b.dataset.channel);
+                            if (!selectedCompetitorChannels.length && allBtn) {
+                                allBtn.classList.add("active");
+                            }
+                        }
+
+                        renderOrUpdateCompetitorCharts(selectedCompetitorChannels);
+                    });
+                });
+            }
+        }
+
+        const overall = chartData.overall || {};
+        function buildOverallSeries(selectedChannels) {
+            const isAll = !selectedChannels || !selectedChannels.length;
+            if (isAll) {
+                return {
+                    negativeTrend: deepCopy(overall.negative_trend || { labels: [], datasets: [] }),
+                    issueByBrand: deepCopy(overall.issue_by_brand || { labels: [], datasets: [] }),
+                    channelShareByBrand: deepCopy(overall.channel_share_by_brand || { labels: [], datasets: [] }),
+                    riskOverview: deepCopy(overall.risk_overview || { labels: [], avg_risk: [], alert_count: [] })
+                };
+            }
+
+            const trendByChannel = (overall.negative_trend_by_channel || {}).datasets_by_channel || {};
+            const issueByChannel = (overall.issue_by_brand_by_channel || {}).datasets_by_channel || {};
+            const riskByChannel = overall.risk_overview_by_channel || {};
+
+            const trendSets = selectedChannels.map(ch => trendByChannel[ch] || []).filter(list => list.length > 0);
+            const mergedTrend = {
+                labels: deepCopy((overall.negative_trend_by_channel || {}).labels || (overall.negative_trend || {}).labels || []),
+                datasets: mergeLineDatasetsByLabel(trendSets)
+            };
+
+            const issueSets = selectedChannels.map(ch => issueByChannel[ch] || []).filter(list => list.length > 0);
+            const mergedIssue = {
+                labels: deepCopy((overall.issue_by_brand_by_channel || {}).labels || (overall.issue_by_brand || {}).labels || []),
+                datasets: mergeBarDatasetsByLabel(issueSets)
+            };
+
+            const shareBase = overall.channel_share_by_brand || { labels: [], datasets: [] };
+            const selectedIdxs = (shareBase.labels || [])
+                .map((label, idx) => selectedChannels.includes(label) ? idx : -1)
+                .filter(idx => idx >= 0);
+            const filteredShare = {
+                labels: selectedIdxs.map(idx => shareBase.labels[idx]),
+                datasets: (shareBase.datasets || []).map(ds => {
+                    const copy = deepCopy(ds);
+                    copy.data = selectedIdxs.map(idx => copy.data[idx] || 0);
+                    return copy;
+                })
+            };
+
+            const riskAccumulator = {};
+            selectedChannels.forEach(channel => {
+                const channelRisk = riskByChannel[channel] || { labels: [], avg_risk: [], alert_count: [] };
+                (channelRisk.labels || []).forEach((brand, idx) => {
+                    const count = channelRisk.alert_count[idx] || 0;
+                    const avg = channelRisk.avg_risk[idx] || 0;
+                    if (!riskAccumulator[brand]) {
+                        riskAccumulator[brand] = { weightedRiskTotal: 0, alertCount: 0 };
+                    }
+                    riskAccumulator[brand].weightedRiskTotal += avg * count;
+                    riskAccumulator[brand].alertCount += count;
+                });
+            });
+
+            const baseBrandOrder = (overall.issue_by_brand || {}).labels || [];
+            const filteredRiskLabels = baseBrandOrder.filter(brand => (riskAccumulator[brand] || {}).alertCount > 0);
+            const filteredRisk = {
+                labels: filteredRiskLabels,
+                avg_risk: filteredRiskLabels.map(brand => {
+                    const bucket = riskAccumulator[brand];
+                    return bucket.alertCount ? Math.round((bucket.weightedRiskTotal / bucket.alertCount) * 100) / 100 : 0;
+                }),
+                alert_count: filteredRiskLabels.map(brand => (riskAccumulator[brand] || {}).alertCount || 0)
+            };
+
+            return {
+                negativeTrend: mergedTrend,
+                issueByBrand: mergedIssue,
+                channelShareByBrand: filteredShare,
+                riskOverview: filteredRisk
+            };
+        }
+
+        function renderOrUpdateOverallCharts(selectedChannels) {
+            const filtered = buildOverallSeries(selectedChannels);
+
+            if (document.getElementById("overallNegativeTrendChart")) {
+                if (!overallCharts.negativeTrend) {
+                    overallCharts.negativeTrend = makeChart("overallNegativeTrendChart", {
+                        type: "line",
+                        data: filtered.negativeTrend,
+                        options: {
+                            ...baseOptions(),
+                            scales: {
+                                y: { title: { display: true, text: "Negative %" } }
+                            }
+                        }
+                    });
+                } else {
+                    overallCharts.negativeTrend.data = filtered.negativeTrend;
+                    overallCharts.negativeTrend.update();
+                }
+            }
+
+            if (document.getElementById("overallIssueByBrandChart")) {
+                if (!overallCharts.issueByBrand) {
+                    overallCharts.issueByBrand = makeChart("overallIssueByBrandChart", {
+                        type: "bar",
+                        data: filtered.issueByBrand,
+                        options: {
+                            ...baseOptions(),
+                            scales: {
+                                x: { stacked: true },
+                                y: { stacked: true, title: { display: true, text: "Mentions" } }
+                            }
+                        }
+                    });
+                } else {
+                    overallCharts.issueByBrand.data = filtered.issueByBrand;
+                    overallCharts.issueByBrand.update();
+                }
+            }
+
+            if (document.getElementById("overallChannelShareChart")) {
+                if (!overallCharts.channelShare) {
+                    overallCharts.channelShare = makeChart("overallChannelShareChart", {
+                        type: "bar",
+                        data: filtered.channelShareByBrand,
+                        options: {
+                            ...baseOptions(),
+                            scales: {
+                                x: { stacked: true },
+                                y: { stacked: true, title: { display: true, text: "Share %" }, max: 100 }
+                            }
+                        }
+                    });
+                } else {
+                    overallCharts.channelShare.data = filtered.channelShareByBrand;
+                    overallCharts.channelShare.update();
+                }
+            }
+
+            if (document.getElementById("overallRiskOverviewChart")) {
+                const riskOverviewData = {
+                    labels: filtered.riskOverview.labels,
+                    datasets: [
+                        {
+                            type: "bar",
+                            label: "Avg Risk Score",
+                            data: filtered.riskOverview.avg_risk,
+                            backgroundColor: "#8AAAE5cc",
+                            borderColor: "#8AAAE5"
+                        },
+                        {
+                            type: "line",
+                            label: "Alert Count",
+                            data: filtered.riskOverview.alert_count,
+                            borderColor: "#D9A66B",
+                            backgroundColor: "#D9A66B33",
+                            yAxisID: "y1",
+                            tension: 0.3
+                        }
+                    ]
+                };
+
+                if (!overallCharts.riskOverview) {
+                    overallCharts.riskOverview = makeChart("overallRiskOverviewChart", {
+                        data: riskOverviewData,
+                        options: {
+                            ...baseOptions(),
+                            scales: {
+                                y: { title: { display: true, text: "Avg Risk" } },
+                                y1: {
+                                    position: "right",
+                                    grid: { drawOnChartArea: false },
+                                    title: { display: true, text: "Alert Count" }
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    overallCharts.riskOverview.data = riskOverviewData;
+                    overallCharts.riskOverview.update();
+                }
+            }
+        }
+
+        if (document.getElementById("overallNegativeTrendChart")) {
+            let selectedOverallChannels = [];
+            renderOrUpdateOverallCharts(selectedOverallChannels);
+            const overallFilterWrap = document.getElementById("overallChannelFilters");
+            if (overallFilterWrap) {
+                overallFilterWrap.querySelectorAll(".filter-btn").forEach(btn => {
+                    btn.addEventListener("click", function () {
+                        const channel = this.dataset.channel || "All";
+                        const allBtn = overallFilterWrap.querySelector('.filter-btn[data-channel="All"]');
+                        const channelBtns = Array.from(overallFilterWrap.querySelectorAll('.filter-btn:not([data-channel="All"])'));
+
+                        if (channel === "All") {
+                            selectedOverallChannels = [];
+                            channelBtns.forEach(b => b.classList.remove("active"));
+                            if (allBtn) allBtn.classList.add("active");
+                        } else {
+                            if (allBtn) allBtn.classList.remove("active");
+                            this.classList.toggle("active");
+                            selectedOverallChannels = channelBtns
+                                .filter(b => b.classList.contains("active"))
+                                .map(b => b.dataset.channel);
+                            if (!selectedOverallChannels.length && allBtn) {
+                                allBtn.classList.add("active");
+                            }
+                        }
+
+                        renderOrUpdateOverallCharts(selectedOverallChannels);
+                    });
+                });
+            }
+        }
+    </script>
+</body>
+</html>

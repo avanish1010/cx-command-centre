@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Operations</title>
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --card: #ffffff;
+            --text: #142033;
+            --muted: #667085;
+            --border: #d8dee9;
+            --ok: #138a4f;
+            --warn: #b56f00;
+            --crit: #b31b1b;
+            --btn: #0f4fcf;
+            --btn-hover: #0b3d9f;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #eef3ff 0%, var(--bg) 55%, #f8fbff 100%);
+            color: var(--text);
+        }
+        .wrap {
+            width: min(1180px, calc(100% - 28px));
+            margin: 22px auto 36px auto;
+        }
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .topbar h1 {
+            margin: 0;
+            font-size: 1.55rem;
+            letter-spacing: 0.01em;
+        }
+        .topbar-links {
+            display: flex;
+            gap: 10px;
+        }
+        .topbar-links a {
+            text-decoration: none;
+            color: var(--btn);
+            font-weight: 600;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px;
+            box-shadow: 0 2px 10px rgba(15, 47, 102, 0.06);
+        }
+        .label {
+            color: var(--muted);
+            font-size: 0.86rem;
+            margin-bottom: 5px;
+        }
+        .value {
+            font-size: 1.15rem;
+            font-weight: 700;
+        }
+        .health {
+            display: inline-flex;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        .health.healthy { background: var(--ok); }
+        .health.degraded { background: var(--warn); }
+        .health.critical { background: var(--crit); }
+        .ops-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+        form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px;
+        }
+        input[type="number"] {
+            width: 96px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 7px 8px;
+            font-size: 0.92rem;
+        }
+        select {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 7px 8px;
+            font-size: 0.92rem;
+            background: #fff;
+            color: var(--text);
+        }
+        .btn {
+            border: 0;
+            border-radius: 8px;
+            background: var(--btn);
+            color: #fff;
+            font-weight: 700;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        .btn:hover { background: var(--btn-hover); }
+        .btn.stop { background: #8e1d1d; }
+        .btn.stop:hover { background: #6e1212; }
+        .inline-note {
+            color: var(--muted);
+            font-size: 0.84rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.86rem;
+        }
+        th, td {
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+            padding: 9px 6px;
+            vertical-align: top;
+        }
+        th {
+            color: var(--muted);
+            font-weight: 700;
+            letter-spacing: 0.01em;
+        }
+        .mono { font-family: Consolas, "Courier New", monospace; }
+        @media (max-width: 980px) {
+            .grid { grid-template-columns: 1fr; }
+            .ops-grid { grid-template-columns: 1fr; }
+            .wrap { width: calc(100% - 16px); }
+            .topbar { flex-direction: column; align-items: flex-start; gap: 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="topbar">
+            <h1>Operations Control Panel</h1>
+            <div class="topbar-links">
+                <a href="/dashboard/all">Dashboard</a>
+                <a href="/admin/users">Admin Users</a>
+                <a href="/logout">Logout</a>
+            </div>
+        </div>
+
+        <div class="grid">
+            <section class="card">
+                <div class="label">System Health Status</div>
+                {% set hs = (health_snapshot.system_health_status or 'Critical').lower() %}
+                <div class="value">
+                    <span class="health {{ hs }}">{{ health_snapshot.system_health_status }}</span>
+                </div>
+                <div class="inline-note" style="margin-top:6px;">
+                    Freshness: {{ health_snapshot.data_freshness }}
+                </div>
+            </section>
+            <section class="card">
+                <div class="label">Last Successful Sync</div>
+                <div class="value">{{ health_snapshot.last_successful_sync_at or "Never" }}</div>
+                <div class="inline-note" style="margin-top:6px;">
+                    Age: {{ health_snapshot.hours_since_last_success if health_snapshot.hours_since_last_success is not none else "N/A" }} hours
+                </div>
+            </section>
+            <section class="card">
+                <div class="label">Scheduler</div>
+                <div class="value">
+                    {% if ingestion_state.auto_mode_enabled %}Running{% else %}Stopped{% endif %}
+                </div>
+                <div class="inline-note" style="margin-top:6px;">
+                    Interval: <span id="interval-hms">{{ scheduler_snapshot.interval_hms }}</span>
+                </div>
+                <div class="inline-note" style="margin-top:4px;">
+                    Preset:
+                    {% if (ingestion_state.auto_preset or "demo_fast") == "high_volume" %}
+                    Full Refresh
+                    {% else %}
+                    Incremental Refresh
+                    {% endif %}
+                </div>
+                <div class="inline-note" style="margin-top:4px;">
+                    Next run in: <span id="countdown-hms">{{ scheduler_snapshot.countdown_hms }}</span>
+                </div>
+            </section>
+        </div>
+
+        <div class="ops-grid">
+            <section class="card">
+                <div class="label">Manual Ingestion Trigger</div>
+                <div class="inline-note">Runs data loading plus daily metric aggregation immediately.</div>
+                <form method="post" action="/admin/operations/run">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <label for="manual_preset" class="inline-note">Preset</label>
+                    <select id="manual_preset" name="preset">
+                        <option value="demo_fast" selected>Incremental Refresh (Recommended)</option>
+                        <option value="high_volume">Full Refresh (Replace Dataset)</option>
+                    </select>
+                    <button class="btn" type="submit">Run Ingestion Now</button>
+                </form>
+            </section>
+            <section class="card">
+                <div class="label">Automated Scheduling</div>
+                <div class="inline-note">Default cadence is every 6 hours.</div>
+                <form method="post" action="/admin/operations/auto/start">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <label for="auto_preset" class="inline-note">Preset</label>
+                    <select id="auto_preset" name="preset">
+                        <option value="demo_fast" {% if (ingestion_state.auto_preset or "demo_fast") == "demo_fast" %}selected{% endif %}>Incremental Refresh (Recommended)</option>
+                        <option value="high_volume" {% if ingestion_state.auto_preset == "high_volume" %}selected{% endif %}>Full Refresh (Replace Dataset)</option>
+                    </select>
+                    <label for="interval_hours" class="inline-note">Interval (hours)</label>
+                    <input id="interval_hours" type="number" min="1" step="1" name="interval_hours" value="{{ (ingestion_state.auto_interval_minutes or 360) // 60 }}">
+                    <button class="btn" type="submit">Start Scheduler</button>
+                </form>
+                <form method="post" action="/admin/operations/auto/stop">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="btn stop" type="submit">Stop Scheduler</button>
+                </form>
+            </section>
+        </div>
+
+        <section class="card">
+            <div class="label">Ingestion History (Latest 40 Runs)</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Run ID</th>
+                        <th>Triggered By</th>
+                        <th>Start</th>
+                        <th>End</th>
+                        <th>Duration</th>
+                        <th>Records</th>
+                        <th>Status</th>
+                        <th>Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if history_rows %}
+                        {% for row in history_rows %}
+                        <tr>
+                            <td class="mono">{{ row.run_id }}</td>
+                            <td>{{ row.triggered_by }}</td>
+                            <td>{{ row.started_at or "-" }}</td>
+                            <td>{{ row.ended_at or "-" }}</td>
+                            <td>{{ row.duration_ms if row.duration_ms is not none else "-" }} ms</td>
+                            <td>{{ row.records_processed }}</td>
+                            <td>{{ row.status }}</td>
+                            <td>{{ row.error_message or "-" }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8">No ingestion runs logged yet.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </section>
+    </div>
+    <script>
+        (function () {
+            let countdownSeconds = {{ scheduler_snapshot.seconds_until_next_run if scheduler_snapshot.seconds_until_next_run is not none else -1 }};
+            const countdownEl = document.getElementById("countdown-hms");
+            const intervalEl = document.getElementById("interval-hms");
+
+            function pad(v) { return String(v).padStart(2, "0"); }
+            function toHms(totalSeconds) {
+                if (totalSeconds < 0) return "N/A";
+                const h = Math.floor(totalSeconds / 3600);
+                const m = Math.floor((totalSeconds % 3600) / 60);
+                const s = totalSeconds % 60;
+                return `${pad(h)}h ${pad(m)}m ${pad(s)}s`;
+            }
+
+            function tickCountdown() {
+                if (!countdownEl) return;
+                if (countdownSeconds >= 0) {
+                    countdownEl.textContent = toHms(countdownSeconds);
+                    if (countdownSeconds > 0) countdownSeconds -= 1;
+                } else {
+                    countdownEl.textContent = "N/A";
+                }
+            }
+
+            async function refreshScheduler() {
+                try {
+                    const resp = await fetch("/ingest/status", { credentials: "same-origin" });
+                    if (!resp.ok) return;
+                    const data = await resp.json();
+                    const scheduler = data.scheduler || {};
+                    countdownSeconds = Number.isInteger(scheduler.seconds_until_next_run) ? scheduler.seconds_until_next_run : -1;
+                    if (intervalEl) intervalEl.textContent = scheduler.interval_hms || "N/A";
+                } catch (e) {
+                    // Silent; page still uses local countdown.
+                }
+            }
+
+            tickCountdown();
+            setInterval(tickCountdown, 1000);
+            setInterval(refreshScheduler, 15000);
+        })();
+    </script>
+</body>
+</html>

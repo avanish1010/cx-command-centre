@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily AI Brief</title>
+    <style>
+        :root {
+            --bg: #f2f6ff;
+            --card: #ffffff;
+            --line: #dbe3f0;
+            --text: #0f172a;
+            --muted: #64748b;
+            --brand: #1e3a8a;
+        }
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: radial-gradient(circle at top right, #dbeafe 0%, var(--bg) 45%);
+            color: var(--text);
+            padding: 28px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 18px;
+        }
+        h1 {
+            margin: 0 0 8px 0;
+            color: var(--brand);
+        }
+        .sub {
+            margin: 0 0 14px 0;
+            color: var(--muted);
+            font-size: 14px;
+        }
+        .brief {
+            line-height: 1.7;
+            font-size: 16px;
+            white-space: pre-line;
+        }
+        .links {
+            margin-top: 16px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            text-decoration: none;
+            color: #fff;
+            background: var(--brand);
+            border-radius: 10px;
+            padding: 9px 12px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>Daily AI Brief</h1>
+            <p class="sub">Morning executive summary for CX leadership.</p>
+            <div class="brief">{{ brief }}</div>
+            <div class="links">
+                <a class="btn" href="/" target="_blank" rel="noopener noreferrer">Home</a>
+                <a class="btn" href="/dashboard/main" target="_blank" rel="noopener noreferrer">Main Dashboard</a>
+                <a class="btn" href="/dashboard/competitors" target="_blank" rel="noopener noreferrer">Competitor Dashboard</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

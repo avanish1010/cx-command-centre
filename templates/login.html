@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | CX Command Centre</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: linear-gradient(180deg, #f2f6fc 0%, #e7eef9 100%);
+            color: #1a2b45;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+        }
+        .card {
+            width: min(460px, 92vw);
+            background: #ffffff;
+            border: 1px solid #d6e1f0;
+            border-radius: 14px;
+            padding: 26px;
+            box-shadow: 0 16px 30px rgba(24, 54, 92, 0.12);
+        }
+        h1 {
+            margin: 0 0 8px;
+            font-size: 26px;
+        }
+        p {
+            margin: 0 0 18px;
+            color: #4d617f;
+            font-size: 14px;
+        }
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            margin: 12px 0 6px;
+            color: #435b7e;
+        }
+        input {
+            width: 100%;
+            padding: 11px 12px;
+            border: 1px solid #c8d6ea;
+            border-radius: 10px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .btn {
+            margin-top: 14px;
+            width: 100%;
+            border: none;
+            border-radius: 10px;
+            padding: 11px 12px;
+            background: #2f5ea3;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .error {
+            margin: 10px 0 0;
+            background: #fff1f3;
+            border: 1px solid #f4c4ce;
+            color: #9c2b4d;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 13px;
+        }
+        .note {
+            margin-top: 12px;
+            color: #637a99;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <form class="card" method="post" action="/login">
+        <h1>Secure Login</h1>
+        <p>Invite-only access. Use your enterprise account credentials.</p>
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="next" value="{{ next_url }}">
+
+        <label for="email">Work Email</label>
+        <input id="email" name="email" type="email" required autocomplete="username">
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" required autocomplete="current-password">
+
+        <button class="btn" type="submit">Sign In</button>
+
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <div class="note">No public signup is available. Contact your SuperAdmin for account creation.</div>
+    </form>
+</body>
+</html>

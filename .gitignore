@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+*.sqlite
+*.db
+.env
+.env.*
+venv/
+.venv/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+Thumbs.db
+instance/
+
+# 🚀 Ignore datasets
+data/
+
+# 🚀 Ignore large JSON/JSONL files anywhere
+*.jsonl
+*.json

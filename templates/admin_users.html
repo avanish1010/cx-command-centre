@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Users | CX Command Centre</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: #edf3fb;
+            color: #18304f;
+            padding: 24px;
+        }
+        .container { max-width: 1080px; margin: 0 auto; }
+        .panel {
+            background: #fff;
+            border: 1px solid #d6e1f0;
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 16px;
+        }
+        h1 { margin: 0 0 8px; font-size: 28px; }
+        .muted { color: #567091; font-size: 13px; }
+        .row { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 8px; align-items: end; }
+        label { display: block; font-size: 12px; font-weight: 700; margin: 10px 0 6px; color: #415a7d; }
+        input, select {
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #c7d6ea;
+            border-radius: 10px;
+            padding: 10px 11px;
+        }
+        .btn {
+            border: 1px solid #c7d6ea;
+            border-radius: 10px;
+            background: #f5f9ff;
+            color: #1f3c62;
+            padding: 9px 12px;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn.primary { background: #2f5ea3; border-color: #2f5ea3; color: #fff; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        th, td { text-align: left; border-bottom: 1px solid #e2eaf5; padding: 10px 8px; font-size: 13px; vertical-align: top; }
+        th { color: #4e6584; text-transform: uppercase; font-size: 11px; letter-spacing: 0.3px; }
+        .pill { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; border: 1px solid #cedaed; background: #f4f8fe; }
+        .pill.inactive { color: #8c334b; background: #fff3f6; border-color: #f1c7d2; }
+        .actions form { display: inline-block; margin-right: 6px; }
+        .top-actions { margin-top: 8px; display: flex; gap: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="panel">
+            <h1>User Administration</h1>
+            <div class="muted">SuperAdmin-only control plane. Public signup is disabled.</div>
+            <div class="top-actions">
+                <a class="btn" href="/dashboard/all" target="_blank" rel="noopener noreferrer">Open Dashboard</a>
+                <a class="btn" href="/logout">Logout</a>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2 style="margin:0 0 8px;font-size:20px;">Create CX Head Account</h2>
+            <form method="post" action="/admin/users">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="row">
+                    <div>
+                        <label for="email">Work Email</label>
+                        <input id="email" name="email" type="email" required>
+                    </div>
+                    <div>
+                        <label for="password">Temporary Password</label>
+                        <input id="password" name="password" type="password" required>
+                    </div>
+                    <div>
+                        <label for="role">Role</label>
+                        <select id="role" name="role">
+                            <option value="cxhead">cxhead</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button class="btn primary" type="submit">Create User</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="panel">
+            <h2 style="margin:0 0 8px;font-size:20px;">Current Users</h2>
+            <table>
+                <tr>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Force Reset</th>
+                    <th>Last Login</th>
+                    <th>Actions</th>
+                </tr>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.email }}</td>
+                    <td><span class="pill">{{ user.role }}</span></td>
+                    <td>
+                        {% if user.is_active %}
+                        <span class="pill">active</span>
+                        {% else %}
+                        <span class="pill inactive">inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ "yes" if user.force_password_reset else "no" }}</td>
+                    <td>{{ user.last_login_at.strftime("%d %b %Y %H:%M") if user.last_login_at else "Never" }}</td>
+                    <td class="actions">
+                        <form method="post" action="/admin/users/{{ user.id }}/toggle">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button class="btn" type="submit">{{ "Disable" if user.is_active else "Enable" }}</button>
+                        </form>
+                        <form method="post" action="/admin/users/{{ user.id }}/reset-password">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="new_password" value="ChangeMe@12345">
+                            <button class="btn" type="submit">Reset Password</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+</body>
+</html>
