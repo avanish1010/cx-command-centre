@@ -2690,7 +2690,15 @@ def evaluate_sentiment():
         {"text": "aadi la shay mumaayaz", "label": "neutral", "language_style": "arabic", "tone": "nuanced"},
         {"text": "aljawda jayyida laken alseir ghali", "label": "neutral", "language_style": "arabic", "tone": "mixed"},
         {"text": "momtaz altalab motaakher marra okhra", "label": "negative", "language_style": "arabic", "tone": "sarcastic"},
-        {"text": "ana saeid jiddan belnatija", "label": "positive", "language_style": "arabic", "tone": "emphatic"}
+        {"text": "ana saeid jiddan belnatija", "label": "positive", "language_style": "arabic", "tone": "emphatic"},
+
+        # Hard real-world ambiguity set to prevent over-optimistic benchmark inflation
+        {"text": "Perfect support, absolutely no progress.", "label": "negative", "language_style": "english", "tone": "sarcastic"},
+        {"text": "Bueno pero nada cambia al final", "label": "neutral", "language_style": "spanish", "tone": "mixed"},
+        {"text": "momtaz, la rad marra okhra", "label": "negative", "language_style": "arabic", "tone": "sarcastic"},
+        {"text": "Wah kya support hai, reply hi nahi aaya", "label": "negative", "language_style": "hinglish", "tone": "sarcastic"},
+        {"text": "Perfect experience, still unresolved.", "label": "negative", "language_style": "code_mixed", "tone": "sarcastic"},
+        {"text": "Produto bom mas suporte fraco", "label": "neutral", "language_style": "portuguese", "tone": "mixed"}
     ]
 
     correct = 0
