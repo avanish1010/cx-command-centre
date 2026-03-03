@@ -2564,7 +2564,15 @@ def evaluate_sentiment():
         {"text": "Works perfectly and feels premium", "label": "positive", "language_style": "english", "tone": "direct"},
         {"text": "Never again, absolute waste of money", "label": "negative", "language_style": "english", "tone": "emphatic"},
         {"text": "Fast delivery and authentic item", "label": "positive", "language_style": "english", "tone": "direct"},
-        {"text": "Quality changed this time, somewhat disappointed", "label": "negative", "language_style": "english", "tone": "nuanced"}
+        {"text": "Quality changed this time, somewhat disappointed", "label": "negative", "language_style": "english", "tone": "nuanced"},
+
+        # Real-world ambiguity samples (harder/mixed intent)
+        {"text": "I wanted to hate it, but it is okay", "label": "neutral", "language_style": "code_mixed", "tone": "mixed"},
+        {"text": "Delivery was on time, quality is average", "label": "neutral", "language_style": "english", "tone": "nuanced"},
+        {"text": "Not good, not bad, manageable", "label": "neutral", "language_style": "english", "tone": "nuanced"},
+        {"text": "Sahi hai overall but expensive", "label": "neutral", "language_style": "hinglish", "tone": "mixed"},
+        {"text": "Accha hai but not worth the price maybe", "label": "neutral", "language_style": "hinglish", "tone": "mixed"},
+        {"text": "Awesome packaging, product useless", "label": "negative", "language_style": "code_mixed", "tone": "sarcastic"}
     ]
 
     correct = 0
