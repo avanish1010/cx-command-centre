@@ -2751,6 +2751,20 @@ def evaluate_sentiment():
     })
 
 
+@app.route("/evaluate/sentiment/view")
+def evaluate_sentiment_view():
+    payload = evaluate_sentiment().get_json()
+    language_rows = sorted(payload.get("language_style_accuracy_percent", {}).items(), key=lambda kv: kv[0])
+    tone_rows = sorted(payload.get("tone_accuracy_percent", {}).items(), key=lambda kv: kv[0])
+    return render_template(
+        "sentiment_evaluation.html",
+        payload=payload,
+        language_rows=language_rows,
+        tone_rows=tone_rows,
+        sample_rows=payload.get("results", [])[:30]
+    )
+
+
 @app.route("/evaluate/leadtime")
 def evaluate_leadtime():
     import statistics
