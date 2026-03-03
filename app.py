@@ -159,6 +159,11 @@ ROLE_SUPERADMIN = "superadmin"
 ROLE_CX_HEAD = "cxhead"
 ALLOWED_ROLES = {ROLE_SUPERADMIN, ROLE_CX_HEAD}
 
+# Fallback bootstrap credentials for environments where Render env vars are missing.
+# Replace these before production use.
+BOOTSTRAP_SUPERADMIN_EMAIL = (os.getenv("SUPERADMIN_EMAIL") or "superadmin@cx-command-centre.local").strip().lower()
+BOOTSTRAP_SUPERADMIN_PASSWORD = os.getenv("SUPERADMIN_PASSWORD") or "ChangeMe@12345"
+
 SUPERADMIN_ONLY_ENDPOINTS = {
     "aggregate_daily_metrics",
     "ingest_run",
@@ -231,10 +236,10 @@ def _bootstrap_superadmin_if_needed():
     if existing_admin:
         return
 
-    email = (os.getenv("SUPERADMIN_EMAIL") or "").strip().lower()
-    password = os.getenv("SUPERADMIN_PASSWORD") or ""
+    email = BOOTSTRAP_SUPERADMIN_EMAIL
+    password = BOOTSTRAP_SUPERADMIN_PASSWORD
     if not email or not password:
-        app.logger.warning("No superadmin exists and SUPERADMIN_EMAIL/SUPERADMIN_PASSWORD are not configured.")
+        app.logger.warning("No superadmin exists and bootstrap credentials are not configured.")
         return
 
     user = User(
