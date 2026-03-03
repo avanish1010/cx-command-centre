@@ -1346,15 +1346,20 @@ def admin_operations_run():
     source = request.form
     preset_name, channel_limits, clear_existing = resolve_ingestion_limits_from_preset(source.get("preset"))
 
-    ok, payload = run_ingestion_pipeline(
-        channel_limits=channel_limits,
-        clear_existing=clear_existing,
-        triggered_by=f"admin:{current_user.email}:{preset_name}"
-    )
+    threading.Thread(
+        target=run_ingestion_pipeline,
+        kwargs={
+            "channel_limits": channel_limits,
+            "clear_existing": clear_existing,
+            "triggered_by": f"admin:{current_user.email}:{preset_name}"
+        },
+        daemon=True
+    ).start()
+    ingestion_state["last_message"] = "Ingestion queued from Admin Operations."
     _audit(
-        "admin_ingestion_triggered",
+        "admin_ingestion_triggered_async",
         target_email=current_user.email,
-        metadata={"ok": ok, "result": payload, "clear_existing": clear_existing, "preset": preset_name},
+        metadata={"queued": True, "clear_existing": clear_existing, "preset": preset_name},
         actor_email=current_user.email
     )
     return redirect(url_for("admin_operations"))
