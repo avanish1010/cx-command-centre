@@ -2650,7 +2650,47 @@ def evaluate_sentiment():
         {"text": "Bahut badhiya but thoda mehenga", "label": "neutral", "language_style": "hinglish", "tone": "mixed"},
         {"text": "Counterfeit product, never again", "label": "negative", "language_style": "english", "tone": "emphatic"},
         {"text": "Recommended purchase, excellent quality", "label": "positive", "language_style": "english", "tone": "emphatic"},
-        {"text": "Good service, delayed delivery again", "label": "negative", "language_style": "english", "tone": "sarcastic"}
+        {"text": "Good service, delayed delivery again", "label": "negative", "language_style": "english", "tone": "sarcastic"},
+
+        # French
+        {"text": "Produit excellent et livraison rapide", "label": "positive", "language_style": "french", "tone": "direct"},
+        {"text": "Service mauvais et remboursement en retard", "label": "negative", "language_style": "french", "tone": "direct"},
+        {"text": "C'est correct, rien de special", "label": "neutral", "language_style": "french", "tone": "nuanced"},
+        {"text": "Qualite bonne mais prix cher", "label": "neutral", "language_style": "french", "tone": "mixed"},
+        {"text": "Genial, encore une livraison en retard", "label": "negative", "language_style": "french", "tone": "sarcastic"},
+        {"text": "Je suis tres satisfait du resultat", "label": "positive", "language_style": "french", "tone": "emphatic"},
+
+        # German
+        {"text": "Sehr gutes Produkt und schnelle Lieferung", "label": "positive", "language_style": "german", "tone": "direct"},
+        {"text": "Schlechter Support und keine Antwort", "label": "negative", "language_style": "german", "tone": "direct"},
+        {"text": "Es ist okay, nichts besonderes", "label": "neutral", "language_style": "german", "tone": "nuanced"},
+        {"text": "Qualitat gut aber zu teuer", "label": "neutral", "language_style": "german", "tone": "mixed"},
+        {"text": "Perfekt, wieder verspätet geliefert", "label": "negative", "language_style": "german", "tone": "sarcastic"},
+        {"text": "Ich bin sehr zufrieden", "label": "positive", "language_style": "german", "tone": "emphatic"},
+
+        # Portuguese
+        {"text": "Produto excelente e entrega rapida", "label": "positive", "language_style": "portuguese", "tone": "direct"},
+        {"text": "Suporte ruim e sem resposta", "label": "negative", "language_style": "portuguese", "tone": "direct"},
+        {"text": "Esta ok, nada demais", "label": "neutral", "language_style": "portuguese", "tone": "nuanced"},
+        {"text": "Qualidade boa mas muito caro", "label": "neutral", "language_style": "portuguese", "tone": "mixed"},
+        {"text": "Perfeito, pedido atrasado de novo", "label": "negative", "language_style": "portuguese", "tone": "sarcastic"},
+        {"text": "Estou muito satisfeito com o resultado", "label": "positive", "language_style": "portuguese", "tone": "emphatic"},
+
+        # Italian
+        {"text": "Prodotto ottimo e consegna veloce", "label": "positive", "language_style": "italian", "tone": "direct"},
+        {"text": "Supporto pessimo e nessuna risposta", "label": "negative", "language_style": "italian", "tone": "direct"},
+        {"text": "Va bene, niente di speciale", "label": "neutral", "language_style": "italian", "tone": "nuanced"},
+        {"text": "Qualita buona ma prezzo caro", "label": "neutral", "language_style": "italian", "tone": "mixed"},
+        {"text": "Perfetto, ancora consegna in ritardo", "label": "negative", "language_style": "italian", "tone": "sarcastic"},
+        {"text": "Sono molto soddisfatto", "label": "positive", "language_style": "italian", "tone": "emphatic"},
+
+        # Arabic (transliterated for stable cross-platform evaluation)
+        {"text": "almontaj momtaz wal tawsil saree", "label": "positive", "language_style": "arabic", "tone": "direct"},
+        {"text": "alkhidma sayyi wa la rad", "label": "negative", "language_style": "arabic", "tone": "direct"},
+        {"text": "aadi la shay mumaayaz", "label": "neutral", "language_style": "arabic", "tone": "nuanced"},
+        {"text": "aljawda jayyida laken alseir ghali", "label": "neutral", "language_style": "arabic", "tone": "mixed"},
+        {"text": "momtaz altalab motaakher marra okhra", "label": "negative", "language_style": "arabic", "tone": "sarcastic"},
+        {"text": "ana saeid jiddan belnatija", "label": "positive", "language_style": "arabic", "tone": "emphatic"}
     ]
 
     correct = 0

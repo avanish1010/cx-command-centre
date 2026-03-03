@@ -13,7 +13,19 @@ NEGATIVE_TERMS = {
     # Hindi (Devanagari)
     "बेकार", "घटिया", "खराब", "नकली", "महंगा", "धोखा", "देरी", "निराश",
     # Spanish
-    "malo", "peor", "horrible", "falso", "caro", "tarde", "tarda", "estafa", "reembolso"
+    "malo", "peor", "horrible", "falso", "caro", "tarde", "tarda", "estafa", "reembolso",
+    # French
+    "mauvais", "pire", "horrible", "faux", "cher", "retard", "arnaque", "remboursement",
+    # German
+    "schlecht", "schlimm", "falsch", "teuer", "verspätet", "betrug", "rückerstattung",
+    # Portuguese
+    "ruim", "pior", "falso", "caro", "atrasado", "golpe", "reembolso",
+    # Italian
+    "scarso", "pessimo", "falso", "caro", "ritardo", "truffa", "rimborso",
+    # Arabic transliteration
+    "sayyi", "ghali", "motaakher", "khidaa", "estirjaa",
+    # Arabic
+    "سيء", "أسوأ", "مزيف", "غالي", "متأخر", "احتيال", "استرجاع"
 }
 
 POSITIVE_TERMS = {
@@ -25,12 +37,30 @@ POSITIVE_TERMS = {
     # Hindi (Devanagari)
     "अच्छा", "बहुतिया", "बढ़िया", "शानदार", "संतुष्ट", "तेज", "असली",
     # Spanish
-    "bueno", "buena", "excelente", "genial", "feliz", "satisfecho", "autentico", "auténtico"
+    "bueno", "buena", "excelente", "genial", "feliz", "satisfecho", "autentico", "auténtico",
+    # French
+    "bon", "bonne", "excellent", "genial", "génial", "satisfait", "authentique",
+    # German
+    "gut", "ausgezeichnet", "zufrieden", "authentisch", "schnell",
+    # Portuguese
+    "bom", "boa", "excelente", "satisfeito", "autentico", "autêntico", "rapido", "rápido",
+    # Italian
+    "buono", "buona", "ottimo", "eccellente", "soddisfatto", "autentico", "veloce",
+    # Arabic transliteration
+    "jayyid", "jayyida", "momtaz", "raeia", "saeid", "aseel", "saree",
+    # Arabic
+    "جيد", "ممتاز", "رائع", "سعيد", "أصيل", "سريع"
 }
 
 INTENSIFIERS = {"very", "extremely", "highly", "super", "too", "so"}
-NEGATORS = {"not", "never", "no", "nahi", "nahin", "mat", "nunca", "ni", "नहीं", "मत"}
-CONTRAST_MARKERS = {"but", "however", "though", "although", "lekin", "par", "pero", "लेकिन"}
+NEGATORS = {
+    "not", "never", "no", "nahi", "nahin", "mat", "nunca", "ni", "नहीं", "मत",
+    "pas", "ne", "nicht", "kein", "nao", "não", "non", "لا", "ليس"
+}
+CONTRAST_MARKERS = {
+    "but", "however", "though", "although", "lekin", "par", "pero", "लेकिन",
+    "mais", "aber", "mas", "ma", "laken", "لكن"
+}
 
 NEUTRAL_PHRASES = (
     r"\bnot bad\b",
@@ -46,6 +76,14 @@ NEUTRAL_PHRASES = (
     r"normal",
     r"mas o menos",
     r"más o menos",
+    r"comme ci comme ca",
+    r"comme ci comme ça",
+    r"so so",
+    r"nichts besonderes",
+    r"nada demais",
+    r"niente di speciale",
+    r"عادي",
+    r"\baadi\b",
 )
 
 NEGATIVE_PHRASES = (
@@ -64,6 +102,20 @@ NEGATIVE_PHRASES = (
     "कोई जवाब नहीं",
     "पैसे की बर्बादी",
     "बहुत महंगा",
+    "aucune reponse",
+    "aucune réponse",
+    "pas de reponse",
+    "pas de réponse",
+    "zu teuer",
+    "keine antwort",
+    "nao vale a pena",
+    "não vale a pena",
+    "sem resposta",
+    "non vale la pena",
+    "nessuna risposta",
+    "wahi ka wahi",
+    "لا يوجد رد",
+    "لا يستحق",
 )
 
 POSITIVE_PHRASES = (
@@ -79,12 +131,30 @@ POSITIVE_PHRASES = (
     "बहुत बढ़िया",
     "बहुतिया",
     "संतुष्ट हूं",
+    "tres bon",
+    "très bon",
+    "hautement recommande",
+    "hautement recommandé",
+    "sehr gut",
+    "sehr zufrieden",
+    "muito bom",
+    "muito satisfeito",
+    "molto buono",
+    "molto soddisfatto",
+    "جيد جدا",
+    "جيد جدًا",
+    "ممتاز جدا",
+    "ممتاز جدًا",
 )
 
-SARCASM_POSITIVE_CUES = {"great", "awesome", "amazing", "fantastic", "perfect", "love"}
+SARCASM_POSITIVE_CUES = {
+    "great", "awesome", "amazing", "fantastic", "perfect", "love",
+    "excelente", "genial", "parfait", "perfetto", "momtaz"
+}
 SARCASM_NEGATIVE_CUES = {
     "delay", "delayed", "late", "refund", "broken", "damaged",
-    "worst", "pathetic", "disappointed", "again", "another", "useless", "fake", "counterfeit"
+    "worst", "pathetic", "disappointed", "again", "another", "useless", "fake", "counterfeit",
+    "retard", "tarde", "ritardo", "wahi", "motaakher"
 }
 
 NON_FLIPPABLE_NEGATIVE_TOKENS = {"refund", "return", "reembolso"}
@@ -165,7 +235,7 @@ def analyze_sentiment(text):
         score *= 0.35
 
     # Sarcasm handling: positive words used with explicit negative event context.
-    if _is_sarcastic_negative(tokens) and negative_hits > 0:
+    if _is_sarcastic_negative(tokens):
         score = min(score, -1.2)
     elif positive_hits > 0 and negative_hits > 0 and {"useless", "fake", "counterfeit", "pathetic", "worst"}.intersection(set(tokens)):
         score = min(score, -0.8)
@@ -182,3 +252,5 @@ def analyze_sentiment(text):
 
     confidence = round(min(1.0, abs(normalized) + (0.1 if len(tokens) > 8 else 0.0)), 3)
     return {"sentiment": label, "score": round(normalized, 3), "confidence": confidence}
+
+
