@@ -759,6 +759,19 @@ def rebuild_daily_metrics():
     DailyMetric.query.delete()
     db.session.commit()
 
+    def metric_product_label(brand, product):
+        brand_text = (brand or "").strip()
+        product_text = (product or "").strip()
+        if product_text:
+            prefix = f"{brand_text} | "
+            if product_text.startswith(prefix):
+                product_text = product_text[len(prefix):].strip()
+            elif "|" in product_text:
+                left, right = product_text.split("|", 1)
+                if left.strip() == brand_text:
+                    product_text = right.strip()
+        return f"{brand_text} | {product_text or 'Unknown Product'}"
+
     reviews = Review.query.all()
     daily_data = defaultdict(lambda: {
         "total": 0,
@@ -804,7 +817,7 @@ def rebuild_daily_metrics():
         metric = DailyMetric(
             date=date,
             channel=channel,
-            product_name=f"{brand} | {product}",
+            product_name=metric_product_label(brand, product),
             total_mentions=data["total"],
             positive_count=data["positive"],
             neutral_count=data["neutral"],
