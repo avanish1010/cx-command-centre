@@ -480,6 +480,20 @@ def get_running_ingestion_snapshot():
     if not running_row or not running_row.started_at:
         return None
 
+    latest_finished_row = (
+        IngestionRun.query
+        .filter(IngestionRun.status.in_(["success", "failed", "cancelled"]))
+        .order_by(IngestionRun.ended_at.desc(), IngestionRun.started_at.desc())
+        .first()
+    )
+    if (
+        latest_finished_row
+        and latest_finished_row.run_id != running_row.run_id
+        and latest_finished_row.ended_at
+        and latest_finished_row.ended_at >= running_row.started_at
+    ):
+        return None
+
     elapsed_ms = int((now_ist() - running_row.started_at).total_seconds() * 1000)
     mode_key = _ingestion_mode(running_row.triggered_by)
     expected_duration_ms = _estimate_expected_duration_ms(mode_key)
