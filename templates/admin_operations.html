@@ -380,10 +380,18 @@
                     const requested = Number(minutesInput && minutesInput.value ? minutesInput.value : "5");
                     const minutes = Number.isFinite(requested) ? Math.max(5, Math.floor(requested)) : 5;
                     try {
-                        const resp = await fetch(`/ingest/auto/start?minutes=${minutes}&preset=demo_fast`, {
+                        const startUrl = `/ingest/auto/start?minutes=${minutes}&preset=demo_fast`;
+                        let resp = await fetch(startUrl, {
                             credentials: "same-origin"
                         });
                         if (!resp.ok) throw new Error("Failed to start quick scheduler");
+                        const data = await resp.json();
+                        if (data && data.already_running) {
+                            const stopResp = await fetch("/ingest/auto/stop", { credentials: "same-origin" });
+                            if (!stopResp.ok) throw new Error("Failed to stop existing scheduler");
+                            resp = await fetch(startUrl, { credentials: "same-origin" });
+                            if (!resp.ok) throw new Error("Failed to restart scheduler");
+                        }
                         window.location.reload();
                     } catch (e) {
                         alert("Could not start quick scheduler. Try again.");
