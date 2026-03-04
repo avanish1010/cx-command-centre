@@ -637,8 +637,8 @@
             </div>
             <div class="chart-grid main-chart-grid">
                 <div class="chart-card">
-                    <h3>Negative Trend (Overall + Channel)</h3>
-                    <div class="chart-canvas-wrap"><canvas id="mainNegativeTrendChart"></canvas></div>
+                    <h3>Negative Intensity Stream</h3>
+                    <div class="chart-canvas-wrap"><canvas id="mainChannelPulseChart"></canvas></div>
                 </div>
                 <div class="chart-card">
                     <h3>Issue Mix by Channel</h3>
@@ -727,8 +727,8 @@
             </div>
             <div class="chart-grid main-chart-grid">
                 <div class="chart-card">
-                    <h3>Negative Trend Comparison</h3>
-                    <div class="chart-canvas-wrap"><canvas id="competitorTrendChart"></canvas></div>
+                    <h3>Competitor Risk Radar</h3>
+                    <div class="chart-canvas-wrap"><canvas id="competitorBenchmarkRadarChart"></canvas></div>
                 </div>
                 <div class="chart-card">
                     <h3>Issue Counts by Brand</h3>
@@ -757,8 +757,8 @@
             </div>
             <div class="chart-grid main-chart-grid">
                 <div class="chart-card">
-                    <h3>Negative Trend by Brand</h3>
-                    <div class="chart-canvas-wrap"><canvas id="overallNegativeTrendChart"></canvas></div>
+                    <h3>Brand Negative Share Mix</h3>
+                    <div class="chart-canvas-wrap"><canvas id="overallBrandMixChart"></canvas></div>
                 </div>
                 <div class="chart-card">
                     <h3>Issue Mix by Brand</h3>
@@ -968,6 +968,65 @@
             return output;
         }
 
+        function averageValue(series) {
+            const vals = (series || []).filter(v => v !== null && v !== undefined);
+            if (!vals.length) return 0;
+            return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100;
+        }
+
+        function buildRadarFromTrend(trendBlock) {
+            const labels = [];
+            const values = [];
+            (trendBlock.datasets || []).forEach(ds => {
+                const avg = averageValue(ds.data || []);
+                if (avg > 0) {
+                    labels.push(ds.label || "Series");
+                    values.push(avg);
+                }
+            });
+            return {
+                labels,
+                datasets: [{
+                    label: "Avg Negative %",
+                    data: values,
+                    backgroundColor: "rgba(122, 167, 227, 0.28)",
+                    borderColor: "#5B8FD6",
+                    pointBackgroundColor: "#5B8FD6",
+                    pointBorderColor: "#FFFFFF",
+                    pointRadius: 3
+                }]
+            };
+        }
+
+        function buildShareMixFromTrend(trendBlock) {
+            const labels = [];
+            const rawValues = [];
+            (trendBlock.datasets || []).forEach(ds => {
+                const avg = averageValue(ds.data || []);
+                if (avg > 0) {
+                    labels.push(ds.label || "Series");
+                    rawValues.push(avg);
+                }
+            });
+
+            const total = rawValues.reduce((a, b) => a + b, 0);
+            const values = total > 0
+                ? rawValues.map(v => Math.round((v / total) * 10000) / 100)
+                : rawValues;
+            const colors = labels.map((_, idx) => `hsl(${(idx * 53) % 360} 72% 62%)`);
+
+            return {
+                labels,
+                datasets: [{
+                    label: "Share %",
+                    data: values,
+                    backgroundColor: colors,
+                    borderColor: "#ffffff",
+                    borderWidth: 2
+                }]
+            };
+        }
+
         function seriesForSelection(selectedChannels) {
             const main = chartData.main || {};
             const isAll = !selectedChannels || !selectedChannels.length;
@@ -1055,11 +1114,21 @@
         function renderOrUpdateMainCharts(selectedChannels) {
             const filtered = seriesForSelection(selectedChannels);
 
-            if (document.getElementById("mainNegativeTrendChart")) {
+            if (document.getElementById("mainChannelPulseChart")) {
                 if (!mainCharts.negativeTrend) {
-                    mainCharts.negativeTrend = makeChart("mainNegativeTrendChart", {
+                    const streamDatasets = (filtered.negativeTrend.datasets || []).map(ds => ({
+                        ...ds,
+                        fill: true,
+                        pointRadius: 1.5,
+                        pointHoverRadius: 4,
+                        tension: 0.38
+                    }));
+                    mainCharts.negativeTrend = makeChart("mainChannelPulseChart", {
                         type: "line",
-                        data: filtered.negativeTrend,
+                        data: {
+                            labels: filtered.negativeTrend.labels || [],
+                            datasets: streamDatasets
+                        },
                         options: {
                             ...baseOptions(),
                             scales: {
@@ -1068,7 +1137,17 @@
                         }
                     });
                 } else {
-                    mainCharts.negativeTrend.data = filtered.negativeTrend;
+                    const streamDatasets = (filtered.negativeTrend.datasets || []).map(ds => ({
+                        ...ds,
+                        fill: true,
+                        pointRadius: 1.5,
+                        pointHoverRadius: 4,
+                        tension: 0.38
+                    }));
+                    mainCharts.negativeTrend.data = {
+                        labels: filtered.negativeTrend.labels || [],
+                        datasets: streamDatasets
+                    };
                     mainCharts.negativeTrend.update();
                 }
             }
@@ -1148,7 +1227,7 @@
         }
 
         const main = chartData.main || {};
-        if (document.getElementById("mainNegativeTrendChart")) {
+        if (document.getElementById("mainChannelPulseChart")) {
             let selectedChannels = [];
             renderOrUpdateMainCharts(selectedChannels);
             const filterWrap = document.getElementById("mainChannelFilters");
@@ -1297,18 +1376,24 @@
         function renderOrUpdateCompetitorCharts(selectedChannels) {
             const competitors = competitorDataForSelection(selectedChannels);
 
-            if (document.getElementById("competitorTrendChart")) {
+            if (document.getElementById("competitorBenchmarkRadarChart")) {
                 if (!competitorCharts.trend) {
-                    competitorCharts.trend = makeChart("competitorTrendChart", {
-                        type: "line",
-                        data: competitors.trend_comparison,
+                    competitorCharts.trend = makeChart("competitorBenchmarkRadarChart", {
+                        type: "radar",
+                        data: buildRadarFromTrend(competitors.trend_comparison || { labels: [], datasets: [] }),
                         options: {
                             ...baseOptions(),
-                            scales: { y: { title: { display: true, text: "Negative %" } } }
+                            scales: {
+                                r: {
+                                    beginAtZero: true,
+                                    suggestedMax: 100,
+                                    title: { display: true, text: "Average Negative %" }
+                                }
+                            }
                         }
                     });
                 } else {
-                    competitorCharts.trend.data = competitors.trend_comparison;
+                    competitorCharts.trend.data = buildRadarFromTrend(competitors.trend_comparison || { labels: [], datasets: [] });
                     competitorCharts.trend.update();
                 }
             }
@@ -1393,7 +1478,7 @@
             }
         }
 
-        if (document.getElementById("competitorTrendChart")) {
+        if (document.getElementById("competitorBenchmarkRadarChart")) {
             let selectedCompetitorChannels = [];
             renderOrUpdateCompetitorCharts(selectedCompetitorChannels);
 
@@ -1503,20 +1588,29 @@
         function renderOrUpdateOverallCharts(selectedChannels) {
             const filtered = buildOverallSeries(selectedChannels);
 
-            if (document.getElementById("overallNegativeTrendChart")) {
+            if (document.getElementById("overallBrandMixChart")) {
                 if (!overallCharts.negativeTrend) {
-                    overallCharts.negativeTrend = makeChart("overallNegativeTrendChart", {
-                        type: "line",
-                        data: filtered.negativeTrend,
+                    overallCharts.negativeTrend = makeChart("overallBrandMixChart", {
+                        type: "doughnut",
+                        data: buildShareMixFromTrend(filtered.negativeTrend || { labels: [], datasets: [] }),
                         options: {
                             ...baseOptions(),
-                            scales: {
-                                y: { title: { display: true, text: "Negative %" } }
+                            plugins: {
+                                ...baseOptions().plugins,
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const label = context.label || "";
+                                            const value = context.parsed || 0;
+                                            return `${label}: ${value}%`;
+                                        }
+                                    }
+                                }
                             }
                         }
                     });
                 } else {
-                    overallCharts.negativeTrend.data = filtered.negativeTrend;
+                    overallCharts.negativeTrend.data = buildShareMixFromTrend(filtered.negativeTrend || { labels: [], datasets: [] });
                     overallCharts.negativeTrend.update();
                 }
             }
@@ -1604,7 +1698,7 @@
             }
         }
 
-        if (document.getElementById("overallNegativeTrendChart")) {
+        if (document.getElementById("overallBrandMixChart")) {
             let selectedOverallChannels = [];
             renderOrUpdateOverallCharts(selectedOverallChannels);
             const overallFilterWrap = document.getElementById("overallChannelFilters");
