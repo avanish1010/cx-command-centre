@@ -569,25 +569,54 @@ def compute_influence_factor(channel, followers=None, views=None, engagement_cou
 
 
 def build_influence_lookup():
+    def _coerce_date(value):
+        if value is None:
+            return None
+        if hasattr(value, "date"):
+            try:
+                return value.date()
+            except Exception:
+                pass
+        if isinstance(value, str):
+            text_value = value.strip()
+            if not text_value:
+                return None
+            try:
+                return datetime.fromisoformat(text_value).date()
+            except ValueError:
+                try:
+                    return datetime.fromisoformat(text_value.replace("Z", "+00:00")).date()
+                except ValueError:
+                    return None
+        return None
+
     rows = (
         db.session.query(
             Review.brand_name,
             Review.product_name,
             Review.channel,
-            cast(Review.timestamp, Date).label("d"),
-            func.avg(Review.influence_factor)
+            Review.timestamp,
+            Review.influence_factor
         )
         .filter(Review.timestamp.isnot(None))
-        .group_by(Review.brand_name, Review.product_name, Review.channel, cast(Review.timestamp, Date))
         .all()
     )
 
-    lookup = {}
-    for brand_name, product_name, channel, day_value, avg_factor in rows:
+    buckets = {}
+    for brand_name, product_name, channel, timestamp_value, influence_factor in rows:
+        day_value = _coerce_date(timestamp_value)
         if day_value is None:
             continue
-        factor = round(max(1.0, min(1.5, avg_factor or 1.0)), 3)
-        lookup[(brand_name, product_name, channel, day_value)] = factor
+        key = (brand_name, product_name, channel, day_value)
+        if key not in buckets:
+            buckets[key] = [0.0, 0]
+        buckets[key][0] += float(influence_factor or 1.0)
+        buckets[key][1] += 1
+
+    lookup = {}
+    for key, (factor_sum, factor_count) in buckets.items():
+        avg_factor = (factor_sum / factor_count) if factor_count else 1.0
+        lookup[key] = round(max(1.0, min(1.5, avg_factor)), 3)
     return lookup
 
 
@@ -1445,6 +1474,12 @@ def _render_dashboard(view_mode="all"):
     top_negative_limit = min(10, max(1, requested_limit))
 
     metrics = DailyMetric.query.order_by(DailyMetric.date).all()
+    if not metrics and Review.query.count() > 0:
+        try:
+            rebuild_daily_metrics()
+            metrics = DailyMetric.query.order_by(DailyMetric.date).all()
+        except Exception:
+            app.logger.exception("Auto-rebuild of daily metrics failed during dashboard render.")
     influence_lookup = build_influence_lookup()
 
     brand_daily_neg = defaultdict(lambda: defaultdict(list))
