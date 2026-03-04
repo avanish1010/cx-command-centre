@@ -572,6 +572,15 @@ def build_influence_lookup():
     def _coerce_date(value):
         if value is None:
             return None
+        if isinstance(value, (int, float)):
+            try:
+                # Handle unix timestamps (seconds or milliseconds).
+                epoch_value = float(value)
+                if epoch_value > 1e12:
+                    epoch_value = epoch_value / 1000.0
+                return datetime.utcfromtimestamp(epoch_value).date()
+            except Exception:
+                return None
         if hasattr(value, "date"):
             try:
                 return value.date()
@@ -590,17 +599,15 @@ def build_influence_lookup():
                     return None
         return None
 
-    rows = (
-        db.session.query(
-            Review.brand_name,
-            Review.product_name,
-            Review.channel,
-            Review.timestamp,
-            Review.influence_factor
+    rows = db.session.execute(
+        text(
+            """
+            SELECT brand_name, product_name, channel, timestamp, influence_factor
+            FROM reviews
+            WHERE timestamp IS NOT NULL
+            """
         )
-        .filter(Review.timestamp.isnot(None))
-        .all()
-    )
+    ).fetchall()
 
     buckets = {}
     for brand_name, product_name, channel, timestamp_value, influence_factor in rows:
@@ -1480,7 +1487,11 @@ def _render_dashboard(view_mode="all"):
             metrics = DailyMetric.query.order_by(DailyMetric.date).all()
         except Exception:
             app.logger.exception("Auto-rebuild of daily metrics failed during dashboard render.")
-    influence_lookup = build_influence_lookup()
+    try:
+        influence_lookup = build_influence_lookup()
+    except Exception:
+        app.logger.exception("Influence lookup build failed; continuing with neutral influence.")
+        influence_lookup = {}
 
     brand_daily_neg = defaultdict(lambda: defaultdict(list))
     for m in metrics:
