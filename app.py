@@ -480,6 +480,12 @@ def get_running_ingestion_snapshot():
     if not running_row or not running_row.started_at:
         return None
 
+    # If app state says this exact run already finished, don't keep showing it as running.
+    state_run_id = ingestion_state.get("last_run_id")
+    state_status = ingestion_state.get("last_status")
+    if state_run_id == running_row.run_id and state_status in {"success", "failed", "cancelled"}:
+        return None
+
     latest_finished_row = (
         IngestionRun.query
         .filter(IngestionRun.status.in_(["success", "failed", "cancelled"]))
