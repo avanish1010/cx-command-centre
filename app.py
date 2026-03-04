@@ -162,6 +162,18 @@ def ensure_review_columns():
     db.session.commit()
 
 
+def ensure_ingestion_run_columns():
+    inspector = inspect(db.engine)
+    columns = {c["name"] for c in inspector.get_columns("ingestion_runs")}
+    required = {
+        "last_heartbeat_at": "DATETIME"
+    }
+    for column_name, column_type in required.items():
+        if column_name not in columns:
+            db.session.execute(text(f"ALTER TABLE ingestion_runs ADD COLUMN {column_name} {column_type}"))
+    db.session.commit()
+
+
 ROLE_SUPERADMIN = "superadmin"
 ROLE_CX_HEAD = "cxhead"
 ALLOWED_ROLES = {ROLE_SUPERADMIN, ROLE_CX_HEAD}
@@ -305,6 +317,7 @@ with app.app_context():
     db.create_all()
     ensure_daily_metric_columns()
     ensure_review_columns()
+    ensure_ingestion_run_columns()
     _bootstrap_superadmin_if_needed()
 
 
@@ -684,26 +697,46 @@ def _stop_auto_ingestion():
     ingestion_state["last_message"] = "Auto-ingestion stop signal issued."
 
 
+def _update_run_heartbeat(run_row_id, beat_time=None):
+    if not run_row_id:
+        return
+    ts = beat_time or now_ist()
+    try:
+        with db.engine.begin() as conn:
+            conn.execute(
+                text("UPDATE ingestion_runs SET last_heartbeat_at = :hb WHERE id = :rid"),
+                {"hb": ts, "rid": run_row_id},
+            )
+    except Exception:
+        # Heartbeat write failure must not break ingestion flow.
+        app.logger.exception("Failed to update ingestion heartbeat for run_row_id=%s", run_row_id)
+
+
 def reconcile_stale_ingestion_runs(max_age_minutes=None):
     if max_age_minutes is None:
         max_age_minutes = _ingestion_stale_minutes()
     now_utc = now_ist()
     stale_cutoff = now_utc - timedelta(minutes=max(5, int(max_age_minutes)))
-    stale_rows = (
+    stale_rows = []
+    running_rows = (
         IngestionRun.query
         .filter(
             IngestionRun.status == "running",
             IngestionRun.started_at.isnot(None),
-            IngestionRun.started_at < stale_cutoff
         )
         .all()
     )
+    for row in running_rows:
+        reference_time = row.last_heartbeat_at or row.started_at
+        if reference_time and reference_time < stale_cutoff:
+            stale_rows.append(row)
     updated = 0
     for row in stale_rows:
         row.status = "failed"
         row.ended_at = now_utc
         if row.started_at:
             row.duration_ms = int((now_utc - row.started_at).total_seconds() * 1000)
+        row.last_heartbeat_at = now_utc
         row.error_message = "Marked failed automatically: run became stale (worker exited or request interrupted)."
         updated += 1
     if updated:
@@ -1064,16 +1097,20 @@ def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="ma
                 run_id=run_id,
                 triggered_by=triggered_by,
                 started_at=started_at,
+                last_heartbeat_at=started_at,
                 status="running"
             )
             db.session.add(run_row)
             db.session.commit()
             run_row_id = run_row.id
+            _update_run_heartbeat(run_row_id, started_at)
 
         _abort_if_cancelled()
         reviews, channel_counts = collect_channel_reviews(normalized_limits)
+        _update_run_heartbeat(run_row_id)
         _abort_if_cancelled()
         enriched_reviews = [enrich_review_record(r) for r in reviews]
+        _update_run_heartbeat(run_row_id)
 
         with app.app_context():
             if clear_existing:
@@ -1083,20 +1120,24 @@ def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="ma
             for i in range(0, len(enriched_reviews), batch_size):
                 _abort_if_cancelled()
                 db.session.bulk_insert_mappings(Review, enriched_reviews[i:i + batch_size])
+                _update_run_heartbeat(run_row_id)
                 if not clear_existing:
                     db.session.commit()
             if clear_existing:
                 _abort_if_cancelled()
                 db.session.commit()
+            _update_run_heartbeat(run_row_id)
 
             _abort_if_cancelled()
             metric_rows = rebuild_daily_metrics()
+            _update_run_heartbeat(run_row_id)
 
             finished_at = now_ist()
             duration_ms = int((finished_at - started_at).total_seconds() * 1000)
             persisted_row = IngestionRun.query.get(run_row_id)
             if persisted_row:
                 persisted_row.ended_at = finished_at
+                persisted_row.last_heartbeat_at = finished_at
                 persisted_row.duration_ms = duration_ms
                 persisted_row.status = "success"
                 persisted_row.records_processed = len(enriched_reviews)
@@ -1128,6 +1169,7 @@ def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="ma
                 persisted_row = IngestionRun.query.get(run_row_id)
                 if persisted_row:
                     persisted_row.ended_at = finished_at
+                    persisted_row.last_heartbeat_at = finished_at
                     persisted_row.duration_ms = duration_ms
                     persisted_row.status = "cancelled" if "cancelled by user" in str(exc).lower() else "failed"
                     persisted_row.records_processed = 0
@@ -2859,6 +2901,7 @@ def ingest_run():
 
 @app.route("/ingest/status")
 def ingest_status():
+    reconcile_stale_ingestion_runs()
     return jsonify({
         "state": ingestion_state,
         "health": get_ingestion_health_snapshot(),

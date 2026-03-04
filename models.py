@@ -120,6 +120,7 @@ class IngestionRun(db.Model):
     run_id = db.Column(db.String(64), unique=True, nullable=False, index=True)
     triggered_by = db.Column(db.String(64), nullable=False, default="system", index=True)
     started_at = db.Column(db.DateTime, nullable=False, default=ist_now, index=True)
+    last_heartbeat_at = db.Column(db.DateTime, default=ist_now, index=True)
     ended_at = db.Column(db.DateTime)
     duration_ms = db.Column(db.Integer)
     status = db.Column(db.String(32), nullable=False, default="running", index=True)
