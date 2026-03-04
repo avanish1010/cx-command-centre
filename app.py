@@ -1496,24 +1496,31 @@ def admin_operations_run():
         )
         return redirect(url_for("admin_operations"))
 
-    ok, result_payload = run_ingestion_pipeline(
-        channel_limits=channel_limits,
-        clear_existing=clear_existing,
-        triggered_by=f"admin:{current_user.email}:{preset_name}"
-    )
-    ingestion_state["last_message"] = (
-        f"Ingestion completed ({result_payload.get('reviews_loaded', 0)} reviews, "
-        f"{result_payload.get('daily_metric_rows', 0)} metric rows)."
-        if ok else f"Ingestion failed: {result_payload.get('error', 'Unknown error')}"
-    )
+    def _run_admin_ingestion_async():
+        try:
+            ok, result_payload = run_ingestion_pipeline(
+                channel_limits=channel_limits,
+                clear_existing=clear_existing,
+                triggered_by=f"admin:{current_user.email}:{preset_name}"
+            )
+            ingestion_state["last_message"] = (
+                f"Ingestion completed ({result_payload.get('reviews_loaded', 0)} reviews, "
+                f"{result_payload.get('daily_metric_rows', 0)} metric rows)."
+                if ok else f"Ingestion failed: {result_payload.get('error', 'Unknown error')}"
+            )
+        except Exception:
+            app.logger.exception("Admin async ingestion failed unexpectedly.")
+            ingestion_state["last_message"] = "Ingestion failed unexpectedly. Check logs."
+
+    threading.Thread(target=_run_admin_ingestion_async, daemon=True).start()
+    ingestion_state["last_message"] = "Ingestion started. Refresh this page in 30-90 seconds."
     _audit(
-        "admin_ingestion_triggered_sync",
+        "admin_ingestion_triggered_async",
         target_email=current_user.email,
         metadata={
-            "ok": ok,
+            "queued": True,
             "clear_existing": clear_existing,
             "preset": preset_name,
-            "result": result_payload
         },
         actor_email=current_user.email
     )
@@ -1597,12 +1604,6 @@ def _render_dashboard(view_mode="all"):
     top_negative_limit = min(10, max(1, requested_limit))
 
     metrics = DailyMetric.query.order_by(DailyMetric.date).all()
-    if not metrics and Review.query.count() > 0:
-        try:
-            rebuild_daily_metrics()
-            metrics = DailyMetric.query.order_by(DailyMetric.date).all()
-        except Exception:
-            app.logger.exception("Auto-rebuild of daily metrics failed during dashboard render.")
     try:
         influence_lookup = build_influence_lookup()
     except Exception:
