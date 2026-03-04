@@ -124,10 +124,6 @@
                 <div class="value">{{ payload.accuracy_percent }}%</div>
             </div>
             <div class="kpi">
-                <div class="label">Benchmark Size</div>
-                <div class="value">{{ payload.benchmark_size }}</div>
-            </div>
-            <div class="kpi">
                 <div class="label">Target (>= {{ payload.target_percent }}%)</div>
                 <div class="value {{ 'ok' if payload.meets_target else 'warn' }}">{{ "Met" if payload.meets_target else "Not Met" }}</div>
             </div>
@@ -164,61 +160,6 @@
             </div>
         </section>
 
-        <section class="snapshot-grid">
-            <div class="panel">
-                <h2>Languages Covered</h2>
-                <ol class="snapshot-list">
-                    {% for label, _ in language_rows %}
-                    <li>{{ label }}</li>
-                    {% endfor %}
-                </ol>
-            </div>
-            <div class="panel">
-                <h2>Overall Metrics</h2>
-                <ol class="snapshot-list">
-                    <li><strong>accuracy_percent:</strong> {{ payload.accuracy_percent }}%</li>
-                    <li><strong>benchmark_size:</strong> {{ payload.benchmark_size }}</li>
-                    <li><strong>meets_target:</strong> {{ payload.meets_target }}</li>
-                </ol>
-            </div>
-            <div class="panel">
-                <h2>Tone Metrics</h2>
-                <ol class="snapshot-list">
-                    {% for label, value in tone_rows %}
-                    <li><strong>{{ label }}:</strong> {{ value }}%</li>
-                    {% endfor %}
-                </ol>
-            </div>
-        </section>
-
-        <section class="panel">
-            <h2>Sample Prediction Rows (First {{ sample_rows|length }})</h2>
-            <table>
-                <tr>
-                    <th>Language</th>
-                    <th>Tone</th>
-                    <th>Expected</th>
-                    <th>Predicted</th>
-                    <th>Score</th>
-                    <th>Match</th>
-                    <th>Text</th>
-                </tr>
-                {% for row in sample_rows %}
-                <tr>
-                    <td>{{ row.language_style }}</td>
-                    <td>{{ row.tone }}</td>
-                    <td>{{ row.expected }}</td>
-                    <td>{{ row.predicted }}</td>
-                    <td>{{ row.score }}</td>
-                    <td>
-                        <span class="pill {{ 'hit' if row.match else 'miss' }}">{{ "Hit" if row.match else "Miss" }}</span>
-                    </td>
-                    <td>{{ row.text }}</td>
-                </tr>
-                {% endfor %}
-            </table>
-            <div class="foot">JSON API remains available at <code>/evaluate/sentiment</code>. This page is for demo presentation.</div>
-        </section>
     </div>
 </body>
 </html>
