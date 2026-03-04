@@ -1987,6 +1987,25 @@ def _render_dashboard(view_mode="all"):
         competitor_alert_count.append(len(risks))
 
     all_channels = sorted({c["name"] for c in channel_cards})
+    overall_sentiment_distribution = {
+        "labels": ["Positive", "Neutral", "Negative"],
+        "data": [
+            sum((m.positive_count or 0) for m in metrics),
+            sum((m.neutral_count or 0) for m in metrics),
+            sum((m.negative_count or 0) for m in metrics)
+        ]
+    }
+    overall_sentiment_distribution_by_channel = {}
+    for channel in all_channels:
+        channel_metrics = [m for m in metrics if (m.channel or "Unknown") == channel]
+        overall_sentiment_distribution_by_channel[channel] = {
+            "labels": ["Positive", "Neutral", "Negative"],
+            "data": [
+                sum((m.positive_count or 0) for m in channel_metrics),
+                sum((m.neutral_count or 0) for m in channel_metrics),
+                sum((m.negative_count or 0) for m in channel_metrics)
+            ]
+        }
     competitor_channel_share_datasets = []
     for idx, brand in enumerate(competitor_names):
         totals = competitor_channel_mentions.get(brand, {})
@@ -2208,6 +2227,8 @@ def _render_dashboard(view_mode="all"):
             "channel_filter_options": all_channels
         },
         "overall": {
+            "sentiment_distribution": overall_sentiment_distribution,
+            "sentiment_distribution_by_channel": overall_sentiment_distribution_by_channel,
             "negative_trend": {
                 "labels": date_labels,
                 "datasets": overall_negative_trend_datasets

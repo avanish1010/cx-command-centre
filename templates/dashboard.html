@@ -727,8 +727,8 @@
             </div>
             <div class="chart-grid main-chart-grid">
                 <div class="chart-card">
-                    <h3>Competitor Risk Radar</h3>
-                    <div class="chart-canvas-wrap"><canvas id="competitorBenchmarkRadarChart"></canvas></div>
+                    <h3>Crisis / Negative Sentiment Trend Over Time</h3>
+                    <div class="chart-canvas-wrap"><canvas id="competitorCrisisTrendChart"></canvas></div>
                 </div>
                 <div class="chart-card">
                     <h3>Issue Counts by Brand</h3>
@@ -757,8 +757,8 @@
             </div>
             <div class="chart-grid main-chart-grid">
                 <div class="chart-card">
-                    <h3>Brand Negative Share Mix</h3>
-                    <div class="chart-canvas-wrap"><canvas id="overallBrandMixChart"></canvas></div>
+                    <h3>Sentiment Distribution (Positive / Neutral / Negative)</h3>
+                    <div class="chart-canvas-wrap"><canvas id="overallSentimentDistributionChart"></canvas></div>
                 </div>
                 <div class="chart-card">
                     <h3>Issue Mix by Brand</h3>
@@ -1021,6 +1021,21 @@
                     label: "Share %",
                     data: values,
                     backgroundColor: colors,
+                    borderColor: "#ffffff",
+                    borderWidth: 2
+                }]
+            };
+        }
+
+        function buildSentimentDistribution(block) {
+            const labels = (block && block.labels) ? block.labels : ["Positive", "Neutral", "Negative"];
+            const data = (block && block.data) ? block.data : [0, 0, 0];
+            return {
+                labels,
+                datasets: [{
+                    label: "Mentions",
+                    data,
+                    backgroundColor: ["#77C28A", "#A9B0BC", "#E88292"],
                     borderColor: "#ffffff",
                     borderWidth: 2
                 }]
@@ -1376,24 +1391,20 @@
         function renderOrUpdateCompetitorCharts(selectedChannels) {
             const competitors = competitorDataForSelection(selectedChannels);
 
-            if (document.getElementById("competitorBenchmarkRadarChart")) {
+            if (document.getElementById("competitorCrisisTrendChart")) {
                 if (!competitorCharts.trend) {
-                    competitorCharts.trend = makeChart("competitorBenchmarkRadarChart", {
-                        type: "radar",
-                        data: buildRadarFromTrend(competitors.trend_comparison || { labels: [], datasets: [] }),
+                    competitorCharts.trend = makeChart("competitorCrisisTrendChart", {
+                        type: "line",
+                        data: competitors.trend_comparison,
                         options: {
                             ...baseOptions(),
                             scales: {
-                                r: {
-                                    beginAtZero: true,
-                                    suggestedMax: 100,
-                                    title: { display: true, text: "Average Negative %" }
-                                }
+                                y: { title: { display: true, text: "Negative %" } }
                             }
                         }
                     });
                 } else {
-                    competitorCharts.trend.data = buildRadarFromTrend(competitors.trend_comparison || { labels: [], datasets: [] });
+                    competitorCharts.trend.data = competitors.trend_comparison;
                     competitorCharts.trend.update();
                 }
             }
@@ -1478,7 +1489,7 @@
             }
         }
 
-        if (document.getElementById("competitorBenchmarkRadarChart")) {
+        if (document.getElementById("competitorCrisisTrendChart")) {
             let selectedCompetitorChannels = [];
             renderOrUpdateCompetitorCharts(selectedCompetitorChannels);
 
@@ -1516,6 +1527,7 @@
             const isAll = !selectedChannels || !selectedChannels.length;
             if (isAll) {
                 return {
+                    sentimentDistribution: deepCopy(overall.sentiment_distribution || { labels: ["Positive", "Neutral", "Negative"], data: [0, 0, 0] }),
                     negativeTrend: deepCopy(overall.negative_trend || { labels: [], datasets: [] }),
                     issueByBrand: deepCopy(overall.issue_by_brand || { labels: [], datasets: [] }),
                     channelShareByBrand: deepCopy(overall.channel_share_by_brand || { labels: [], datasets: [] }),
@@ -1526,6 +1538,7 @@
             const trendByChannel = (overall.negative_trend_by_channel || {}).datasets_by_channel || {};
             const issueByChannel = (overall.issue_by_brand_by_channel || {}).datasets_by_channel || {};
             const riskByChannel = overall.risk_overview_by_channel || {};
+            const sentimentByChannel = overall.sentiment_distribution_by_channel || {};
 
             const trendSets = selectedChannels.map(ch => trendByChannel[ch] || []).filter(list => list.length > 0);
             const mergedTrend = {
@@ -1577,7 +1590,20 @@
                 alert_count: filteredRiskLabels.map(brand => (riskAccumulator[brand] || {}).alertCount || 0)
             };
 
+            const sentimentAcc = [0, 0, 0];
+            selectedChannels.forEach(channel => {
+                const channelSentiment = sentimentByChannel[channel] || { data: [0, 0, 0] };
+                const vals = channelSentiment.data || [0, 0, 0];
+                sentimentAcc[0] += vals[0] || 0;
+                sentimentAcc[1] += vals[1] || 0;
+                sentimentAcc[2] += vals[2] || 0;
+            });
+
             return {
+                sentimentDistribution: {
+                    labels: ["Positive", "Neutral", "Negative"],
+                    data: sentimentAcc
+                },
                 negativeTrend: mergedTrend,
                 issueByBrand: mergedIssue,
                 channelShareByBrand: filteredShare,
@@ -1588,11 +1614,11 @@
         function renderOrUpdateOverallCharts(selectedChannels) {
             const filtered = buildOverallSeries(selectedChannels);
 
-            if (document.getElementById("overallBrandMixChart")) {
+            if (document.getElementById("overallSentimentDistributionChart")) {
                 if (!overallCharts.negativeTrend) {
-                    overallCharts.negativeTrend = makeChart("overallBrandMixChart", {
+                    overallCharts.negativeTrend = makeChart("overallSentimentDistributionChart", {
                         type: "doughnut",
-                        data: buildShareMixFromTrend(filtered.negativeTrend || { labels: [], datasets: [] }),
+                        data: buildSentimentDistribution(filtered.sentimentDistribution),
                         options: {
                             ...baseOptions(),
                             plugins: {
@@ -1602,7 +1628,7 @@
                                         label: function(context) {
                                             const label = context.label || "";
                                             const value = context.parsed || 0;
-                                            return `${label}: ${value}%`;
+                                            return `${label}: ${value} mentions`;
                                         }
                                     }
                                 }
@@ -1610,7 +1636,7 @@
                         }
                     });
                 } else {
-                    overallCharts.negativeTrend.data = buildShareMixFromTrend(filtered.negativeTrend || { labels: [], datasets: [] });
+                    overallCharts.negativeTrend.data = buildSentimentDistribution(filtered.sentimentDistribution);
                     overallCharts.negativeTrend.update();
                 }
             }
@@ -1698,7 +1724,7 @@
             }
         }
 
-        if (document.getElementById("overallBrandMixChart")) {
+        if (document.getElementById("overallSentimentDistributionChart")) {
             let selectedOverallChannels = [];
             renderOrUpdateOverallCharts(selectedOverallChannels);
             const overallFilterWrap = document.getElementById("overallChannelFilters");
