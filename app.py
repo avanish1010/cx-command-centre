@@ -400,9 +400,9 @@ def resolve_ingestion_limits_from_preset(preset_name, overrides=None):
 
 def _ingestion_stale_minutes():
     try:
-        return max(5, int(os.getenv("INGEST_STALE_MINUTES", "20")))
+        return max(5, int(os.getenv("INGEST_STALE_MINUTES", "5")))
     except ValueError:
-        return 20
+        return 5
 
 
 def _triggered_by_label(triggered_by):
@@ -1481,25 +1481,24 @@ def admin_operations_run():
         )
         return redirect(url_for("admin_operations"))
 
-    def _run_async_ingestion():
-        try:
-            run_ingestion_pipeline(
-                channel_limits=channel_limits,
-                clear_existing=clear_existing,
-                triggered_by=f"admin:{current_user.email}:{preset_name}"
-            )
-        except Exception:
-            app.logger.exception("Admin async ingestion worker failed.")
-
-    threading.Thread(target=_run_async_ingestion, daemon=False).start()
-    ingestion_state["last_message"] = "Ingestion queued from Admin Operations."
+    ok, result_payload = run_ingestion_pipeline(
+        channel_limits=channel_limits,
+        clear_existing=clear_existing,
+        triggered_by=f"admin:{current_user.email}:{preset_name}"
+    )
+    ingestion_state["last_message"] = (
+        f"Ingestion completed ({result_payload.get('reviews_loaded', 0)} reviews, "
+        f"{result_payload.get('daily_metric_rows', 0)} metric rows)."
+        if ok else f"Ingestion failed: {result_payload.get('error', 'Unknown error')}"
+    )
     _audit(
-        "admin_ingestion_triggered_async",
+        "admin_ingestion_triggered_sync",
         target_email=current_user.email,
         metadata={
-            "queued": True,
+            "ok": ok,
             "clear_existing": clear_existing,
             "preset": preset_name,
+            "result": result_payload
         },
         actor_email=current_user.email
     )
