@@ -203,7 +203,10 @@
                 {% if running_snapshot %}
                 <div class="value" style="font-size:0.98rem;">{{ running_snapshot.mode_label }}</div>
                 <div class="inline-note" style="margin-top:6px;">Run ID: <span class="mono">{{ running_snapshot.run_id }}</span></div>
-                <div class="inline-note" style="margin-top:4px;">Elapsed: {{ running_snapshot.elapsed_hms }}</div>
+                <div class="inline-note" style="margin-top:4px;">
+                    Elapsed:
+                    <span id="active-elapsed-hms" data-started-at="{{ running_snapshot.started_at }}">{{ running_snapshot.elapsed_hms }}</span>
+                </div>
                 <div class="inline-note" style="margin-top:4px;">Expected: {{ running_snapshot.expected_hms }}</div>
                 {% if running_snapshot.can_cancel %}
                 <form method="post" action="/admin/operations/cancel">
@@ -336,6 +339,21 @@
             tickCountdown();
             setInterval(tickCountdown, 1000);
             setInterval(refreshScheduler, 15000);
+
+            function updateActiveElapsed() {
+                const elapsedEl = document.getElementById("active-elapsed-hms");
+                if (!elapsedEl) return;
+                const startedAt = elapsedEl.getAttribute("data-started-at");
+                if (!startedAt) return;
+                const startedMs = Date.parse(startedAt);
+                if (Number.isNaN(startedMs)) return;
+                const nowMs = Date.now();
+                const elapsedSec = Math.max(0, Math.floor((nowMs - startedMs) / 1000));
+                elapsedEl.textContent = toHms(elapsedSec);
+            }
+
+            updateActiveElapsed();
+            setInterval(updateActiveElapsed, 1000);
 
         })();
     </script>
