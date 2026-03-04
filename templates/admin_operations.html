@@ -256,7 +256,7 @@
                         {% for row in history_rows %}
                         <tr>
                             <td class="mono">{{ row.run_id }}</td>
-                            <td>{{ row.triggered_by }}</td>
+                            <td title="{{ row.triggered_by }}">{{ row.triggered_by_label or row.triggered_by }}</td>
                             <td>{{ row.started_at or "-" }}</td>
                             <td>{{ row.ended_at or "-" }}</td>
                             <td>{{ row.duration_ms if row.duration_ms is not none else "-" }} ms</td>

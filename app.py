@@ -10,7 +10,6 @@ import threading
 import math
 import statistics
 import uuid
-import subprocess
 from sqlalchemy import inspect, text, func, cast, Date
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -399,6 +398,33 @@ def resolve_ingestion_limits_from_preset(preset_name, overrides=None):
     return preset_key, limits, clear_existing
 
 
+def _ingestion_stale_minutes():
+    try:
+        return max(5, int(os.getenv("INGEST_STALE_MINUTES", "20")))
+    except ValueError:
+        return 20
+
+
+def _triggered_by_label(triggered_by):
+    value = (triggered_by or "").strip()
+    if value.startswith("admin:"):
+        parts = value.split(":")
+        preset = parts[-1] if len(parts) >= 3 else "demo_fast"
+        preset_label = INGESTION_PRESETS.get(preset, {}).get("label", preset)
+        return f"Admin Manual ({preset_label})"
+    if value == "manual_api":
+        return "Manual API"
+    if value == "manual_admin_ui":
+        return "Manual Admin UI"
+    if value == "scheduler":
+        return "Scheduler"
+    if value == "data_loader_script":
+        return "Data Loader Script"
+    if value == "diagnostic_smoke":
+        return "Diagnostic Smoke"
+    return value or "Unknown"
+
+
 def get_ingestion_history(limit=25):
     rows = (
         IngestionRun.query
@@ -417,6 +443,7 @@ def get_ingestion_history(limit=25):
         history.append({
             "run_id": row.run_id,
             "triggered_by": row.triggered_by,
+            "triggered_by_label": _triggered_by_label(row.triggered_by),
             "started_at": row.started_at.isoformat() if row.started_at else None,
             "ended_at": row.ended_at.isoformat() if row.ended_at else None,
             "duration_ms": row.duration_ms,
@@ -545,7 +572,9 @@ def _stop_auto_ingestion():
     ingestion_state["last_message"] = "Auto-ingestion stop signal issued."
 
 
-def reconcile_stale_ingestion_runs(max_age_minutes=120):
+def reconcile_stale_ingestion_runs(max_age_minutes=None):
+    if max_age_minutes is None:
+        max_age_minutes = _ingestion_stale_minutes()
     now_utc = datetime.utcnow()
     stale_cutoff = now_utc - timedelta(minutes=max(5, int(max_age_minutes)))
     stale_rows = (
@@ -570,7 +599,9 @@ def reconcile_stale_ingestion_runs(max_age_minutes=120):
     return updated
 
 
-def has_recent_running_ingestion(max_age_minutes=180):
+def has_recent_running_ingestion(max_age_minutes=None):
+    if max_age_minutes is None:
+        max_age_minutes = _ingestion_stale_minutes()
     now_utc = datetime.utcnow()
     cutoff = now_utc - timedelta(minutes=max(5, int(max_age_minutes)))
     return (
@@ -934,7 +965,7 @@ def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="ma
 
     try:
         with app.app_context():
-            reconcile_stale_ingestion_runs(max_age_minutes=120)
+            reconcile_stale_ingestion_runs()
             run_row = IngestionRun(
                 run_id=run_id,
                 triggered_by=triggered_by,
@@ -1437,8 +1468,9 @@ def admin_operations_run():
 
     source = request.form
     preset_name, channel_limits, clear_existing = resolve_ingestion_limits_from_preset(source.get("preset"))
-    reconcile_stale_ingestion_runs(max_age_minutes=120)
-    active_run = has_recent_running_ingestion(max_age_minutes=180)
+    stale_window = _ingestion_stale_minutes()
+    reconcile_stale_ingestion_runs(max_age_minutes=stale_window)
+    active_run = has_recent_running_ingestion(max_age_minutes=stale_window)
     if active_run:
         ingestion_state["last_message"] = f"Ingestion already running (run_id={active_run.run_id})."
         _audit(
@@ -1449,17 +1481,20 @@ def admin_operations_run():
         )
         return redirect(url_for("admin_operations"))
 
-    worker_code = (
-        "import json;"
-        "from app import run_ingestion_pipeline;"
-        f"limits=json.loads({json.dumps(json.dumps(channel_limits))});"
-        f"run_ingestion_pipeline(limits, clear_existing={str(bool(clear_existing))}, "
-        f"triggered_by={json.dumps(f'admin:{current_user.email}:{preset_name}')})"
-    )
-    subprocess.Popen([sys.executable, "-c", worker_code])
+    def _run_async_ingestion():
+        try:
+            run_ingestion_pipeline(
+                channel_limits=channel_limits,
+                clear_existing=clear_existing,
+                triggered_by=f"admin:{current_user.email}:{preset_name}"
+            )
+        except Exception:
+            app.logger.exception("Admin async ingestion worker failed.")
+
+    threading.Thread(target=_run_async_ingestion, daemon=False).start()
     ingestion_state["last_message"] = "Ingestion queued from Admin Operations."
     _audit(
-        "admin_ingestion_triggered_subprocess",
+        "admin_ingestion_triggered_async",
         target_email=current_user.email,
         metadata={
             "queued": True,
