@@ -10,6 +10,7 @@ import threading
 import math
 import statistics
 import uuid
+import subprocess
 from sqlalchemy import inspect, text, func, cast, Date
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -566,6 +567,21 @@ def reconcile_stale_ingestion_runs(max_age_minutes=120):
     if updated:
         db.session.commit()
     return updated
+
+
+def has_recent_running_ingestion(max_age_minutes=180):
+    now_utc = datetime.utcnow()
+    cutoff = now_utc - timedelta(minutes=max(5, int(max_age_minutes)))
+    return (
+        IngestionRun.query
+        .filter(
+            IngestionRun.status == "running",
+            IngestionRun.started_at.isnot(None),
+            IngestionRun.started_at >= cutoff
+        )
+        .order_by(IngestionRun.started_at.desc())
+        .first()
+    )
 
 
 def compute_influence_factor(channel, followers=None, views=None, engagement_count=None):
@@ -1420,24 +1436,29 @@ def admin_operations_run():
 
     source = request.form
     preset_name, channel_limits, clear_existing = resolve_ingestion_limits_from_preset(source.get("preset"))
+    reconcile_stale_ingestion_runs(max_age_minutes=120)
+    active_run = has_recent_running_ingestion(max_age_minutes=180)
+    if active_run:
+        ingestion_state["last_message"] = f"Ingestion already running (run_id={active_run.run_id})."
+        _audit(
+            "admin_ingestion_trigger_rejected_running",
+            target_email=current_user.email,
+            metadata={"active_run_id": active_run.run_id, "preset": preset_name},
+            actor_email=current_user.email
+        )
+        return redirect(url_for("admin_operations"))
 
-    def _run_async_ingestion():
-        try:
-            run_ingestion_pipeline(
-                channel_limits=channel_limits,
-                clear_existing=clear_existing,
-                triggered_by=f"admin:{current_user.email}:{preset_name}"
-            )
-        except Exception:
-            app.logger.exception("Admin async ingestion thread failed unexpectedly.")
-
-    threading.Thread(
-        target=_run_async_ingestion,
-        daemon=True
-    ).start()
+    worker_code = (
+        "import json;"
+        "from app import run_ingestion_pipeline;"
+        f"limits=json.loads({json.dumps(json.dumps(channel_limits))});"
+        f"run_ingestion_pipeline(limits, clear_existing={str(bool(clear_existing))}, "
+        f"triggered_by={json.dumps(f'admin:{current_user.email}:{preset_name}')})"
+    )
+    subprocess.Popen([sys.executable, "-c", worker_code])
     ingestion_state["last_message"] = "Ingestion queued from Admin Operations."
     _audit(
-        "admin_ingestion_triggered_async",
+        "admin_ingestion_triggered_subprocess",
         target_email=current_user.email,
         metadata={
             "queued": True,
@@ -1882,9 +1903,13 @@ def _render_dashboard(view_mode="all"):
     date_labels = [d.strftime("%Y-%m-%d") for d in date_values]
 
     channel_summary = defaultdict(int)
-    reviews = Review.query.all()
-    for r in reviews:
-        channel_summary[r.channel] += 1
+    channel_count_rows = (
+        db.session.query(Review.channel, func.count(Review.id))
+        .group_by(Review.channel)
+        .all()
+    )
+    for channel_name, channel_count in channel_count_rows:
+        channel_summary[channel_name or "Unknown"] += int(channel_count or 0)
 
     total_channel_mentions = sum(channel_summary.values())
     channel_cards = []
@@ -1897,10 +1922,16 @@ def _render_dashboard(view_mode="all"):
         })
     channel_cards.sort(key=lambda c: c["count"], reverse=True)
 
-    negative_reviews = Review.query.filter(
-        (Review.sentiment == "negative") |
-        (Review.sentiment_score.isnot(None))
-    ).all()
+    negative_reviews = (
+        Review.query
+        .filter(
+            (Review.sentiment == "negative") |
+            (Review.sentiment_score < 0)
+        )
+        .order_by(Review.timestamp.desc())
+        .limit(12000)
+        .all()
+    )
 
     channel_icons = {
         "Amazon": "\U0001F6D2",
