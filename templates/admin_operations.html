@@ -208,7 +208,7 @@
                 <div class="label">Active Ingestion</div>
                 {% if running_snapshot %}
                 <div class="value" style="font-size:0.98rem;">{{ running_snapshot.mode_label }}</div>
-                <div class="inline-note" style="margin-top:6px;">Run ID: <span class="mono">{{ running_snapshot.run_id }}</span></div>
+                <div class="inline-note" style="margin-top:6px;">Run ID: <span id="active-run-id" class="mono" data-run-id="{{ running_snapshot.run_id }}">{{ running_snapshot.run_id }}</span></div>
                 <div class="inline-note" style="margin-top:4px;">
                     Elapsed:
                     <span id="active-elapsed-hms" data-started-at="{{ running_snapshot.started_at }}">{{ running_snapshot.elapsed_hms }}</span>
@@ -349,14 +349,23 @@
                     const scheduler = data.scheduler || {};
                     countdownSeconds = Number.isInteger(scheduler.seconds_until_next_run) ? scheduler.seconds_until_next_run : -1;
                     if (intervalEl) intervalEl.textContent = scheduler.interval_hms || "N/A";
+                    const activeRunIdEl = document.getElementById("active-run-id");
+                    if (activeRunIdEl) {
+                        const uiRunId = activeRunIdEl.getAttribute("data-run-id");
+                        const apiRunId = data && data.running ? data.running.run_id : null;
+                        if (!apiRunId || apiRunId !== uiRunId) {
+                            window.location.reload();
+                        }
+                    }
                 } catch (e) {
                     // Silent; page still uses local countdown.
                 }
             }
 
             tickCountdown();
+            refreshScheduler();
             setInterval(tickCountdown, 1000);
-            setInterval(refreshScheduler, 15000);
+            setInterval(refreshScheduler, 5000);
 
             function updateActiveElapsed() {
                 const elapsedEl = document.getElementById("active-elapsed-hms");
