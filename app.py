@@ -543,6 +543,31 @@ def _stop_auto_ingestion():
     ingestion_state["last_message"] = "Auto-ingestion stop signal issued."
 
 
+def reconcile_stale_ingestion_runs(max_age_minutes=120):
+    now_utc = datetime.utcnow()
+    stale_cutoff = now_utc - timedelta(minutes=max(5, int(max_age_minutes)))
+    stale_rows = (
+        IngestionRun.query
+        .filter(
+            IngestionRun.status == "running",
+            IngestionRun.started_at.isnot(None),
+            IngestionRun.started_at < stale_cutoff
+        )
+        .all()
+    )
+    updated = 0
+    for row in stale_rows:
+        row.status = "failed"
+        row.ended_at = now_utc
+        if row.started_at:
+            row.duration_ms = int((now_utc - row.started_at).total_seconds() * 1000)
+        row.error_message = "Marked failed automatically: run became stale (worker exited or request interrupted)."
+        updated += 1
+    if updated:
+        db.session.commit()
+    return updated
+
+
 def compute_influence_factor(channel, followers=None, views=None, engagement_count=None):
     social_channels = {"twitter", "instagram", "reddit"}
     if (channel or "").lower() not in social_channels:
@@ -892,6 +917,7 @@ def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="ma
 
     try:
         with app.app_context():
+            reconcile_stale_ingestion_runs(max_age_minutes=120)
             run_row = IngestionRun(
                 run_id=run_id,
                 triggered_by=triggered_by,
@@ -1394,21 +1420,24 @@ def admin_operations_run():
 
     source = request.form
     preset_name, channel_limits, clear_existing = resolve_ingestion_limits_from_preset(source.get("preset"))
-
-    threading.Thread(
-        target=run_ingestion_pipeline,
-        kwargs={
-            "channel_limits": channel_limits,
-            "clear_existing": clear_existing,
-            "triggered_by": f"admin:{current_user.email}:{preset_name}"
-        },
-        daemon=True
-    ).start()
-    ingestion_state["last_message"] = "Ingestion queued from Admin Operations."
+    ok, result_payload = run_ingestion_pipeline(
+        channel_limits=channel_limits,
+        clear_existing=clear_existing,
+        triggered_by=f"admin:{current_user.email}:{preset_name}"
+    )
+    ingestion_state["last_message"] = (
+        "Ingestion and aggregation completed from Admin Operations."
+        if ok else f"Ingestion failed from Admin Operations: {result_payload.get('error', 'Unknown error')}"
+    )
     _audit(
-        "admin_ingestion_triggered_async",
+        "admin_ingestion_triggered_sync",
         target_email=current_user.email,
-        metadata={"queued": True, "clear_existing": clear_existing, "preset": preset_name},
+        metadata={
+            "ok": ok,
+            "clear_existing": clear_existing,
+            "preset": preset_name,
+            "result": result_payload
+        },
         actor_email=current_user.email
     )
     return redirect(url_for("admin_operations"))
