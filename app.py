@@ -166,7 +166,7 @@ def ensure_ingestion_run_columns():
     inspector = inspect(db.engine)
     columns = {c["name"] for c in inspector.get_columns("ingestion_runs")}
     required = {
-        "last_heartbeat_at": "DATETIME"
+        "last_heartbeat_at": "TIMESTAMP"
     }
     for column_name, column_type in required.items():
         if column_name not in columns:
