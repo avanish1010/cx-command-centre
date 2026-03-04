@@ -637,8 +637,8 @@
             </div>
             <div class="chart-grid main-chart-grid">
                 <div class="chart-card">
-                    <h3>Negative Intensity Stream</h3>
-                    <div class="chart-canvas-wrap"><canvas id="mainChannelPulseChart"></canvas></div>
+                    <h3>Sentiment Distribution (Positive / Neutral / Negative) - Overall brand health</h3>
+                    <div class="chart-canvas-wrap"><canvas id="mainSentimentDistributionChart"></canvas></div>
                 </div>
                 <div class="chart-card">
                     <h3>Issue Mix by Channel</h3>
@@ -727,8 +727,8 @@
             </div>
             <div class="chart-grid main-chart-grid">
                 <div class="chart-card">
-                    <h3>Crisis / Negative Sentiment Trend Over Time</h3>
-                    <div class="chart-canvas-wrap"><canvas id="competitorCrisisTrendChart"></canvas></div>
+                    <h3>Top Issue Categories Comparison (Grouped)</h3>
+                    <div class="chart-canvas-wrap"><canvas id="competitorTopIssueCompareChart"></canvas></div>
                 </div>
                 <div class="chart-card">
                     <h3>Issue Counts by Brand</h3>
@@ -757,8 +757,8 @@
             </div>
             <div class="chart-grid main-chart-grid">
                 <div class="chart-card">
-                    <h3>Sentiment Distribution (Positive / Neutral / Negative)</h3>
-                    <div class="chart-canvas-wrap"><canvas id="overallSentimentDistributionChart"></canvas></div>
+                    <h3>Top Impact Issues by Brand</h3>
+                    <div class="chart-canvas-wrap"><canvas id="overallTopImpactIssuesChart"></canvas></div>
                 </div>
                 <div class="chart-card">
                     <h3>Issue Mix by Brand</h3>
@@ -974,59 +974,6 @@
             return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100;
         }
 
-        function buildRadarFromTrend(trendBlock) {
-            const labels = [];
-            const values = [];
-            (trendBlock.datasets || []).forEach(ds => {
-                const avg = averageValue(ds.data || []);
-                if (avg > 0) {
-                    labels.push(ds.label || "Series");
-                    values.push(avg);
-                }
-            });
-            return {
-                labels,
-                datasets: [{
-                    label: "Avg Negative %",
-                    data: values,
-                    backgroundColor: "rgba(122, 167, 227, 0.28)",
-                    borderColor: "#5B8FD6",
-                    pointBackgroundColor: "#5B8FD6",
-                    pointBorderColor: "#FFFFFF",
-                    pointRadius: 3
-                }]
-            };
-        }
-
-        function buildShareMixFromTrend(trendBlock) {
-            const labels = [];
-            const rawValues = [];
-            (trendBlock.datasets || []).forEach(ds => {
-                const avg = averageValue(ds.data || []);
-                if (avg > 0) {
-                    labels.push(ds.label || "Series");
-                    rawValues.push(avg);
-                }
-            });
-
-            const total = rawValues.reduce((a, b) => a + b, 0);
-            const values = total > 0
-                ? rawValues.map(v => Math.round((v / total) * 10000) / 100)
-                : rawValues;
-            const colors = labels.map((_, idx) => `hsl(${(idx * 53) % 360} 72% 62%)`);
-
-            return {
-                labels,
-                datasets: [{
-                    label: "Share %",
-                    data: values,
-                    backgroundColor: colors,
-                    borderColor: "#ffffff",
-                    borderWidth: 2
-                }]
-            };
-        }
-
         function buildSentimentDistribution(block) {
             const labels = (block && block.labels) ? block.labels : ["Positive", "Neutral", "Negative"];
             const data = (block && block.data) ? block.data : [0, 0, 0];
@@ -1042,6 +989,60 @@
             };
         }
 
+        function buildTopIssueComparison(issueBlock, maxIssues = 5, maxBrands = 2) {
+            const labels = issueBlock.labels || [];
+            const datasets = issueBlock.datasets || [];
+            const selectedBrands = deepCopy(datasets)
+                .sort((a, b) => {
+                    const totalA = (a.data || []).reduce((s, v) => s + (v || 0), 0);
+                    const totalB = (b.data || []).reduce((s, v) => s + (v || 0), 0);
+                    return totalB - totalA;
+                })
+                .slice(0, maxBrands);
+
+            const issueTotals = labels.map((_, idx) =>
+                selectedBrands.reduce((sum, ds) => sum + ((ds.data || [])[idx] || 0), 0)
+            );
+            const topIndexes = issueTotals
+                .map((v, idx) => ({ idx, v }))
+                .sort((a, b) => b.v - a.v)
+                .slice(0, maxIssues)
+                .map(item => item.idx);
+
+            return {
+                labels: topIndexes.map(idx => labels[idx]),
+                datasets: selectedBrands.map((ds, idx) => ({
+                    label: ds.label || `Brand ${idx + 1}`,
+                    data: topIndexes.map(issueIdx => (ds.data || [])[issueIdx] || 0),
+                    backgroundColor: ds.backgroundColor || `hsl(${(idx * 75) % 360} 68% 60%)`,
+                    borderColor: ds.borderColor || "#4B5870"
+                }))
+            };
+        }
+
+        function buildTopImpactIssuesByBrand(issueByBrandBlock, maxIssues = 5) {
+            const brands = issueByBrandBlock.labels || [];
+            const issueDatasets = issueByBrandBlock.datasets || [];
+            const topIssues = deepCopy(issueDatasets)
+                .sort((a, b) => {
+                    const totalA = (a.data || []).reduce((s, v) => s + (v || 0), 0);
+                    const totalB = (b.data || []).reduce((s, v) => s + (v || 0), 0);
+                    return totalB - totalA;
+                })
+                .slice(0, maxIssues);
+
+            const colors = brands.map((_, idx) => `hsl(${(idx * 53) % 360} 66% 60%)`);
+            return {
+                labels: topIssues.map(ds => ds.label || "Issue"),
+                datasets: brands.map((brand, brandIdx) => ({
+                    label: brand,
+                    data: topIssues.map(issueDs => (issueDs.data || [])[brandIdx] || 0),
+                    backgroundColor: colors[brandIdx],
+                    borderColor: "#445066"
+                }))
+            };
+        }
+
         function seriesForSelection(selectedChannels) {
             const main = chartData.main || {};
             const isAll = !selectedChannels || !selectedChannels.length;
@@ -1051,6 +1052,7 @@
                     ds => !(ds.label || "").toLowerCase().includes("(overall)")
                 );
                 return {
+                    sentimentDistribution: deepCopy(main.sentiment_distribution || { labels: ["Positive", "Neutral", "Negative"], data: [0, 0, 0] }),
                     negativeTrend: allNegativeTrend,
                     issueMix: deepCopy(main.issue_channel_mix || { labels: [], datasets: [] }),
                     negativeCounts: deepCopy(main.channel_negative_counts || { labels: [], data: [] }),
@@ -1067,6 +1069,7 @@
             const negativeCountsBase = main.channel_negative_counts || { labels: [], data: [] };
             const momentumByChannel = (main.negative_momentum_delta_by_channel || {}).series || {};
             const momentumLabels = (main.negative_momentum_delta_by_channel || {}).labels || [];
+            const sentimentByChannel = (main.sentiment_distribution_by_channel || {});
 
             const negativeTrendDatasets = (negativeTrendBase.datasets || [])
                 .filter(ds => selectedChannels.includes(ds.label))
@@ -1110,8 +1113,20 @@
             const selectionLabel = selectedChannels.length > 1
                 ? `${selectedChannels.join(", ")} Delta vs Prior 7-Day Baseline (Avg)`
                 : `${selectedChannels[0]} Delta vs Prior 7-Day Baseline`;
+            const sentimentAcc = [0, 0, 0];
+            selectedChannels.forEach(channel => {
+                const channelSent = sentimentByChannel[channel] || { data: [0, 0, 0] };
+                const vals = channelSent.data || [0, 0, 0];
+                sentimentAcc[0] += vals[0] || 0;
+                sentimentAcc[1] += vals[1] || 0;
+                sentimentAcc[2] += vals[2] || 0;
+            });
 
             return {
+                sentimentDistribution: {
+                    labels: ["Positive", "Neutral", "Negative"],
+                    data: sentimentAcc
+                },
                 negativeTrend: {
                     labels: deepCopy(negativeTrendBase.labels || []),
                     datasets: negativeTrendDatasets
@@ -1129,40 +1144,17 @@
         function renderOrUpdateMainCharts(selectedChannels) {
             const filtered = seriesForSelection(selectedChannels);
 
-            if (document.getElementById("mainChannelPulseChart")) {
+            if (document.getElementById("mainSentimentDistributionChart")) {
                 if (!mainCharts.negativeTrend) {
-                    const streamDatasets = (filtered.negativeTrend.datasets || []).map(ds => ({
-                        ...ds,
-                        fill: true,
-                        pointRadius: 1.5,
-                        pointHoverRadius: 4,
-                        tension: 0.38
-                    }));
-                    mainCharts.negativeTrend = makeChart("mainChannelPulseChart", {
-                        type: "line",
-                        data: {
-                            labels: filtered.negativeTrend.labels || [],
-                            datasets: streamDatasets
-                        },
+                    mainCharts.negativeTrend = makeChart("mainSentimentDistributionChart", {
+                        type: "doughnut",
+                        data: buildSentimentDistribution(filtered.sentimentDistribution),
                         options: {
-                            ...baseOptions(),
-                            scales: {
-                                y: { title: { display: true, text: "Negative %" } }
-                            }
+                            ...baseOptions()
                         }
                     });
                 } else {
-                    const streamDatasets = (filtered.negativeTrend.datasets || []).map(ds => ({
-                        ...ds,
-                        fill: true,
-                        pointRadius: 1.5,
-                        pointHoverRadius: 4,
-                        tension: 0.38
-                    }));
-                    mainCharts.negativeTrend.data = {
-                        labels: filtered.negativeTrend.labels || [],
-                        datasets: streamDatasets
-                    };
+                    mainCharts.negativeTrend.data = buildSentimentDistribution(filtered.sentimentDistribution);
                     mainCharts.negativeTrend.update();
                 }
             }
@@ -1242,7 +1234,7 @@
         }
 
         const main = chartData.main || {};
-        if (document.getElementById("mainChannelPulseChart")) {
+        if (document.getElementById("mainSentimentDistributionChart")) {
             let selectedChannels = [];
             renderOrUpdateMainCharts(selectedChannels);
             const filterWrap = document.getElementById("mainChannelFilters");
@@ -1391,20 +1383,21 @@
         function renderOrUpdateCompetitorCharts(selectedChannels) {
             const competitors = competitorDataForSelection(selectedChannels);
 
-            if (document.getElementById("competitorCrisisTrendChart")) {
+            if (document.getElementById("competitorTopIssueCompareChart")) {
                 if (!competitorCharts.trend) {
-                    competitorCharts.trend = makeChart("competitorCrisisTrendChart", {
-                        type: "line",
-                        data: competitors.trend_comparison,
+                    competitorCharts.trend = makeChart("competitorTopIssueCompareChart", {
+                        type: "bar",
+                        data: buildTopIssueComparison(competitors.issue_grouped || { labels: [], datasets: [] }),
                         options: {
                             ...baseOptions(),
                             scales: {
-                                y: { title: { display: true, text: "Negative %" } }
+                                x: { stacked: false },
+                                y: { title: { display: true, text: "Issue Mentions" } }
                             }
                         }
                     });
                 } else {
-                    competitorCharts.trend.data = competitors.trend_comparison;
+                    competitorCharts.trend.data = buildTopIssueComparison(competitors.issue_grouped || { labels: [], datasets: [] });
                     competitorCharts.trend.update();
                 }
             }
@@ -1489,7 +1482,7 @@
             }
         }
 
-        if (document.getElementById("competitorCrisisTrendChart")) {
+        if (document.getElementById("competitorTopIssueCompareChart")) {
             let selectedCompetitorChannels = [];
             renderOrUpdateCompetitorCharts(selectedCompetitorChannels);
 
@@ -1614,29 +1607,21 @@
         function renderOrUpdateOverallCharts(selectedChannels) {
             const filtered = buildOverallSeries(selectedChannels);
 
-            if (document.getElementById("overallSentimentDistributionChart")) {
+            if (document.getElementById("overallTopImpactIssuesChart")) {
                 if (!overallCharts.negativeTrend) {
-                    overallCharts.negativeTrend = makeChart("overallSentimentDistributionChart", {
-                        type: "doughnut",
-                        data: buildSentimentDistribution(filtered.sentimentDistribution),
+                    overallCharts.negativeTrend = makeChart("overallTopImpactIssuesChart", {
+                        type: "bar",
+                        data: buildTopImpactIssuesByBrand(filtered.issueByBrand || { labels: [], datasets: [] }),
                         options: {
                             ...baseOptions(),
-                            plugins: {
-                                ...baseOptions().plugins,
-                                tooltip: {
-                                    callbacks: {
-                                        label: function(context) {
-                                            const label = context.label || "";
-                                            const value = context.parsed || 0;
-                                            return `${label}: ${value} mentions`;
-                                        }
-                                    }
-                                }
+                            scales: {
+                                x: { stacked: false },
+                                y: { title: { display: true, text: "Issue Mentions" } }
                             }
                         }
                     });
                 } else {
-                    overallCharts.negativeTrend.data = buildSentimentDistribution(filtered.sentimentDistribution);
+                    overallCharts.negativeTrend.data = buildTopImpactIssuesByBrand(filtered.issueByBrand || { labels: [], datasets: [] });
                     overallCharts.negativeTrend.update();
                 }
             }
@@ -1724,7 +1709,7 @@
             }
         }
 
-        if (document.getElementById("overallSentimentDistributionChart")) {
+        if (document.getElementById("overallTopImpactIssuesChart")) {
             let selectedOverallChannels = [];
             renderOrUpdateOverallCharts(selectedOverallChannels);
             const overallFilterWrap = document.getElementById("overallChannelFilters");

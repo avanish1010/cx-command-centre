@@ -1937,6 +1937,29 @@ def _render_dashboard(view_mode="all"):
     main_channel_negative_values = [
         len(primary_negative_comments_by_channel[ch]) for ch in main_channel_negative_labels
     ]
+    primary_metrics = [
+        m for m in metrics
+        if ((m.product_name or "").split(" | ")[0] == primary_brand_name)
+    ] if primary_brand_name else []
+    main_sentiment_distribution = {
+        "labels": ["Positive", "Neutral", "Negative"],
+        "data": [
+            sum((m.positive_count or 0) for m in primary_metrics),
+            sum((m.neutral_count or 0) for m in primary_metrics),
+            sum((m.negative_count or 0) for m in primary_metrics)
+        ]
+    }
+    main_sentiment_distribution_by_channel = {}
+    for channel in sorted(primary_channel_daily_neg.keys()):
+        channel_metrics = [m for m in primary_metrics if (m.channel or "Unknown") == channel]
+        main_sentiment_distribution_by_channel[channel] = {
+            "labels": ["Positive", "Neutral", "Negative"],
+            "data": [
+                sum((m.positive_count or 0) for m in channel_metrics),
+                sum((m.neutral_count or 0) for m in channel_metrics),
+                sum((m.negative_count or 0) for m in channel_metrics)
+            ]
+        }
 
     main_momentum_by_channel = {}
     for channel_name, date_map in primary_channel_daily_neg.items():
@@ -2167,6 +2190,8 @@ def _render_dashboard(view_mode="all"):
 
     chart_data = {
         "main": {
+            "sentiment_distribution": main_sentiment_distribution,
+            "sentiment_distribution_by_channel": main_sentiment_distribution_by_channel,
             "negative_trend": {
                 "labels": date_labels,
                 "datasets": main_negative_datasets
