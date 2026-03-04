@@ -1449,9 +1449,23 @@ def admin_operations():
 
     history_rows = get_ingestion_history(limit=40)
     health_snapshot = get_ingestion_health_snapshot()
+    latest_run = history_rows[0] if history_rows else None
+    if latest_run:
+        if latest_run.get("status") == "success":
+            ui_last_message = (
+                f"Last run succeeded: {latest_run.get('records_processed', 0)} records, "
+                f"{latest_run.get('metric_rows', 0)} metric rows."
+            )
+        elif latest_run.get("status") == "failed":
+            ui_last_message = f"Last run failed: {latest_run.get('error_message') or 'Unknown error'}"
+        else:
+            ui_last_message = f"Last run is still {latest_run.get('status')}."
+    else:
+        ui_last_message = ingestion_state.get("last_message", "No ingestion run yet.")
     return render_template(
         "admin_operations.html",
         ingestion_state=ingestion_state,
+        ui_last_message=ui_last_message,
         history_rows=history_rows,
         health_snapshot=health_snapshot,
         scheduler_snapshot=get_scheduler_snapshot()
