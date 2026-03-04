@@ -203,8 +203,11 @@
                 {% if running_snapshot %}
                 <div class="value" style="font-size:0.98rem;">{{ running_snapshot.mode_label }}</div>
                 <div class="inline-note" style="margin-top:6px;">Run ID: <span class="mono">{{ running_snapshot.run_id }}</span></div>
-                <div class="inline-note" style="margin-top:4px;">Elapsed: {{ running_snapshot.elapsed_hms }}</div>
-                <div class="inline-note" style="margin-top:4px;">Expected: {{ running_snapshot.expected_hms }}</div>
+                <div class="inline-note" style="margin-top:4px;">
+                    Elapsed:
+                    <span id="active-elapsed-hms" data-started-at="{{ running_snapshot.started_at }}">{{ running_snapshot.elapsed_hms }}</span>
+                </div>
+                <div class="inline-note" style="margin-top:4px;">Expected: <span id="active-expected-hms">{{ running_snapshot.expected_hms }}</span></div>
                 {% if running_snapshot.can_cancel %}
                 <form method="post" action="/admin/operations/cancel">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -246,6 +249,12 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="btn stop" type="submit">Stop Scheduler</button>
                 </form>
+                <div class="inline-note" style="margin-top:10px;">Demo quick scheduler (minutes, min 5)</div>
+                <form id="quick-scheduler-form">
+                    <label for="quick_minutes" class="inline-note">Interval (minutes)</label>
+                    <input id="quick_minutes" type="number" min="5" step="1" value="5">
+                    <button class="btn" type="submit">Start Quick Demo Scheduler</button>
+                </form>
             </section>
         </div>
 
@@ -276,7 +285,11 @@
                                 {% if row.duration_ms is not none %}
                                 {{ row.duration_ms }} ms
                                 {% elif row.status == "running" %}
+                                {% if loop.first %}
+                                <span id="history-running-duration" data-started-at="{{ row.started_at }}" data-expected="{{ row.expected_hms or '-' }}">{{ row.elapsed_hms or "-" }} / ETA {{ row.expected_hms or "-" }}</span>
+                                {% else %}
                                 {{ row.elapsed_hms or "-" }} / ETA {{ row.expected_hms or "-" }}
+                                {% endif %}
                                 {% else %}
                                 - ms
                                 {% endif %}
@@ -336,6 +349,47 @@
             tickCountdown();
             setInterval(tickCountdown, 1000);
             setInterval(refreshScheduler, 15000);
+
+            function updateRunningElapsed() {
+                const activeElapsedEl = document.getElementById("active-elapsed-hms");
+                if (!activeElapsedEl) return;
+                const startedAt = activeElapsedEl.getAttribute("data-started-at");
+                if (!startedAt) return;
+                const startedMs = Date.parse(startedAt);
+                if (Number.isNaN(startedMs)) return;
+                const nowMs = Date.now();
+                const elapsedSec = Math.max(0, Math.floor((nowMs - startedMs) / 1000));
+                const elapsedText = toHms(elapsedSec);
+                activeElapsedEl.textContent = elapsedText;
+
+                const historyDurationEl = document.getElementById("history-running-duration");
+                if (historyDurationEl) {
+                    const etaPart = historyDurationEl.getAttribute("data-expected") || "-";
+                    historyDurationEl.textContent = `${elapsedText} / ETA ${etaPart}`;
+                }
+            }
+
+            updateRunningElapsed();
+            setInterval(updateRunningElapsed, 1000);
+
+            const quickSchedulerForm = document.getElementById("quick-scheduler-form");
+            if (quickSchedulerForm) {
+                quickSchedulerForm.addEventListener("submit", async function (evt) {
+                    evt.preventDefault();
+                    const minutesInput = document.getElementById("quick_minutes");
+                    const requested = Number(minutesInput && minutesInput.value ? minutesInput.value : "5");
+                    const minutes = Number.isFinite(requested) ? Math.max(5, Math.floor(requested)) : 5;
+                    try {
+                        const resp = await fetch(`/ingest/auto/start?minutes=${minutes}&preset=demo_fast`, {
+                            credentials: "same-origin"
+                        });
+                        if (!resp.ok) throw new Error("Failed to start quick scheduler");
+                        window.location.reload();
+                    } catch (e) {
+                        alert("Could not start quick scheduler. Try again.");
+                    }
+                });
+            }
         })();
     </script>
 </body>
