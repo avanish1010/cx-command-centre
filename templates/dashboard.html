@@ -930,11 +930,46 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         const chartData = {{ chart_data|tojson }};
-        Chart.defaults.color = "#5f7491";
-        Chart.defaults.borderColor = "#dfe8f5";
+        const PASTEL = {
+            text: "#475f7f",
+            grid: "#d7e3f3",
+            brand: ["#8fb3e8", "#e8adc5", "#f0c9a8", "#a9d8cc", "#c7b6e8", "#9ec7da"],
+            issue: ["#9eb6e0", "#e5afc4", "#e7c5a4", "#a9cdbf", "#bfafe0", "#9dc8d8", "#c9d9b0"],
+            sentiment: {
+                positive: "#8fcf9f",
+                neutral: "#aeb7c6",
+                negative: "#e08da1"
+            },
+            accent: {
+                negativeBar: "#d9a8bf",
+                momentumLine: "#8fc3b1",
+                riskBar: "#97b3df",
+                riskLine: "#d9b486"
+            }
+        };
+        Chart.defaults.color = PASTEL.text;
+        Chart.defaults.borderColor = PASTEL.grid;
         const mainCharts = {};
         const competitorCharts = {};
         const overallCharts = {};
+
+        function paletteColor(list, idx) {
+            return list[idx % list.length];
+        }
+
+        function cloneDataBlock(data) {
+            return deepCopy(data || { labels: [], datasets: [] });
+        }
+
+        function withDatasetPalette(dataBlock, palette) {
+            const cloned = cloneDataBlock(dataBlock);
+            cloned.datasets = (cloned.datasets || []).map((ds, idx) => ({
+                ...ds,
+                backgroundColor: paletteColor(palette, idx),
+                borderColor: paletteColor(palette, idx)
+            }));
+            return cloned;
+        }
 
         function baseOptions() {
             return {
@@ -984,7 +1019,11 @@
                 datasets: [{
                     label: "Mentions",
                     data,
-                    backgroundColor: ["#77C28A", "#A9B0BC", "#E88292"],
+                    backgroundColor: [
+                        PASTEL.sentiment.positive,
+                        PASTEL.sentiment.neutral,
+                        PASTEL.sentiment.negative
+                    ],
                     borderColor: "#ffffff",
                     borderWidth: 2
                 }]
@@ -1016,8 +1055,8 @@
                 datasets: selectedBrands.map((ds, idx) => ({
                     label: ds.label || `Brand ${idx + 1}`,
                     data: topIndexes.map(issueIdx => (ds.data || [])[issueIdx] || 0),
-                    backgroundColor: ds.backgroundColor || `hsl(${(idx * 75) % 360} 68% 60%)`,
-                    borderColor: ds.borderColor || "#a8b8ce"
+                    backgroundColor: paletteColor(PASTEL.brand, idx),
+                    borderColor: paletteColor(PASTEL.brand, idx)
                 }))
             };
         }
@@ -1033,14 +1072,13 @@
                 })
                 .slice(0, maxIssues);
 
-            const colors = brands.map((_, idx) => `hsl(${(idx * 53) % 360} 66% 60%)`);
             return {
                 labels: topIssues.map(ds => ds.label || "Issue"),
                 datasets: brands.map((brand, brandIdx) => ({
                     label: brand,
                     data: topIssues.map(issueDs => (issueDs.data || [])[brandIdx] || 0),
-                    backgroundColor: colors[brandIdx],
-                    borderColor: "#a8b8ce"
+                    backgroundColor: paletteColor(PASTEL.brand, brandIdx),
+                    borderColor: paletteColor(PASTEL.brand, brandIdx)
                 }))
             };
         }
@@ -1063,8 +1101,8 @@
                 datasets: selectedBrands.map((ds, idx) => ({
                     label: ds.label || `Brand ${idx + 1}`,
                     data: deepCopy(ds.data || [0, 0, 0]),
-                    backgroundColor: ds.backgroundColor || `hsl(${(idx * 75) % 360} 65% 68%)`,
-                    borderColor: ds.borderColor || "#a8b8ce"
+                    backgroundColor: paletteColor(PASTEL.brand, idx),
+                    borderColor: paletteColor(PASTEL.brand, idx)
                 }))
             };
         }
@@ -1105,8 +1143,8 @@
                 negativeTrendDatasets.unshift({
                     label: "Selected Channels (Avg)",
                     data: averageSeries(negativeTrendDatasets.map(ds => ds.data || [])),
-                    borderColor: "#8AAAE5",
-                    backgroundColor: "rgba(138,170,229,0.2)",
+                    borderColor: paletteColor(PASTEL.brand, 0),
+                    backgroundColor: "#dbe7f8",
                     tension: 0.3,
                     fill: false,
                     borderDash: [6, 5]
@@ -1189,7 +1227,7 @@
                 if (!mainCharts.issueMix) {
                     mainCharts.issueMix = makeChart("mainIssueChannelChart", {
                         type: "bar",
-                        data: filtered.issueMix,
+                        data: withDatasetPalette(filtered.issueMix, PASTEL.issue),
                         options: {
                             ...baseOptions(),
                             scales: {
@@ -1199,7 +1237,7 @@
                         }
                     });
                 } else {
-                    mainCharts.issueMix.data = filtered.issueMix;
+                    mainCharts.issueMix.data = withDatasetPalette(filtered.issueMix, PASTEL.issue);
                     mainCharts.issueMix.update();
                 }
             }
@@ -1210,8 +1248,8 @@
                     datasets: [{
                         label: "Negative Comments",
                         data: filtered.negativeCounts.data,
-                        backgroundColor: "#E8A0BFcc",
-                        borderColor: "#E8A0BF"
+                        backgroundColor: PASTEL.accent.negativeBar,
+                        borderColor: PASTEL.accent.negativeBar
                     }]
                 };
                 if (!mainCharts.negativeComments) {
@@ -1235,8 +1273,8 @@
                     datasets: [{
                         label: filtered.momentum.label,
                         data: filtered.momentum.data,
-                        borderColor: "#9BC8B4",
-                        backgroundColor: "rgba(155,200,180,0.25)",
+                        borderColor: PASTEL.accent.momentumLine,
+                        backgroundColor: "#d7eee6",
                         fill: true,
                         tension: 0.3
                     }]
@@ -1304,11 +1342,12 @@
             return Object.entries(byLabel).map(([label, list]) => {
                 const data = averageSeries(list.map(d => d.data || []));
                 const first = list[0] || {};
+                const colorIndex = Object.keys(byLabel).indexOf(label);
                 return {
                     label,
                     data,
-                    borderColor: first.borderColor || "#8AAAE5",
-                    backgroundColor: first.backgroundColor || "rgba(138,170,229,0.2)",
+                    borderColor: first.borderColor || paletteColor(PASTEL.brand, colorIndex),
+                    backgroundColor: first.backgroundColor || "#dbe7f8",
                     tension: 0.3,
                     fill: false
                 };
@@ -1330,11 +1369,12 @@
                 const merged = Array.from({ length: len }, (_, idx) =>
                     list.reduce((sum, item) => sum + (item.data[idx] || 0), 0)
                 );
+                const colorIndex = Object.keys(byLabel).indexOf(label);
                 return {
                     label,
                     data: merged,
-                    backgroundColor: first.backgroundColor || "#8AAAE5cc",
-                    borderColor: first.borderColor || "#8AAAE5"
+                    backgroundColor: first.backgroundColor || paletteColor(PASTEL.brand, colorIndex),
+                    borderColor: first.borderColor || paletteColor(PASTEL.brand, colorIndex)
                 };
             });
         }
@@ -1492,15 +1532,15 @@
                             type: "bar",
                             label: "Avg Risk Score",
                             data: competitors.risk_overview.avg_risk,
-                            backgroundColor: "#8AAAE5cc",
-                            borderColor: "#8AAAE5"
+                            backgroundColor: PASTEL.accent.riskBar,
+                            borderColor: PASTEL.accent.riskBar
                         },
                         {
                             type: "line",
                             label: "Alert Count",
                             data: competitors.risk_overview.alert_count,
-                            borderColor: "#D9A66B",
-                            backgroundColor: "#D9A66B33",
+                            borderColor: PASTEL.accent.riskLine,
+                            backgroundColor: "#f3e5d4",
                             yAxisID: "y1",
                             tension: 0.3
                         }
@@ -1532,7 +1572,7 @@
                 if (!competitorCharts.share) {
                     competitorCharts.share = makeChart("competitorChannelShareChart", {
                         type: "bar",
-                        data: competitors.channel_share,
+                        data: withDatasetPalette(competitors.channel_share, PASTEL.brand),
                         options: {
                             ...baseOptions(),
                             scales: {
@@ -1542,7 +1582,7 @@
                         }
                     });
                 } else {
-                    competitorCharts.share.data = competitors.channel_share;
+                    competitorCharts.share.data = withDatasetPalette(competitors.channel_share, PASTEL.brand);
                     competitorCharts.share.update();
                 }
             }
@@ -1696,7 +1736,7 @@
                 if (!overallCharts.issueByBrand) {
                     overallCharts.issueByBrand = makeChart("overallIssueByBrandChart", {
                         type: "bar",
-                        data: filtered.issueByBrand,
+                        data: withDatasetPalette(filtered.issueByBrand, PASTEL.issue),
                         options: {
                             ...baseOptions(),
                             scales: {
@@ -1706,7 +1746,7 @@
                         }
                     });
                 } else {
-                    overallCharts.issueByBrand.data = filtered.issueByBrand;
+                    overallCharts.issueByBrand.data = withDatasetPalette(filtered.issueByBrand, PASTEL.issue);
                     overallCharts.issueByBrand.update();
                 }
             }
@@ -1715,7 +1755,7 @@
                 if (!overallCharts.channelShare) {
                     overallCharts.channelShare = makeChart("overallChannelShareChart", {
                         type: "bar",
-                        data: filtered.channelShareByBrand,
+                        data: withDatasetPalette(filtered.channelShareByBrand, PASTEL.brand),
                         options: {
                             ...baseOptions(),
                             scales: {
@@ -1725,7 +1765,7 @@
                         }
                     });
                 } else {
-                    overallCharts.channelShare.data = filtered.channelShareByBrand;
+                    overallCharts.channelShare.data = withDatasetPalette(filtered.channelShareByBrand, PASTEL.brand);
                     overallCharts.channelShare.update();
                 }
             }
@@ -1738,15 +1778,15 @@
                             type: "bar",
                             label: "Avg Risk Score",
                             data: filtered.riskOverview.avg_risk,
-                            backgroundColor: "#8AAAE5cc",
-                            borderColor: "#8AAAE5"
+                            backgroundColor: PASTEL.accent.riskBar,
+                            borderColor: PASTEL.accent.riskBar
                         },
                         {
                             type: "line",
                             label: "Alert Count",
                             data: filtered.riskOverview.alert_count,
-                            borderColor: "#D9A66B",
-                            backgroundColor: "#D9A66B33",
+                            borderColor: PASTEL.accent.riskLine,
+                            backgroundColor: "#f3e5d4",
                             yAxisID: "y1",
                             tension: 0.3
                         }
