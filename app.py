@@ -170,6 +170,7 @@ SUPERADMIN_ONLY_ENDPOINTS = {
     "ingest_run",
     "ingest_status",
     "ingest_history",
+    "ingest_reconcile_stale",
     "ingest_auto_start",
     "ingest_auto_stop",
     "reset_db",
@@ -2658,6 +2659,19 @@ def ingest_history():
     return jsonify({
         "ok": True,
         "history": get_ingestion_history(limit=limit)
+    })
+
+
+@app.route("/ingest/reconcile-stale")
+def ingest_reconcile_stale():
+    minutes = parse_int("minutes", 120)
+    fixed = reconcile_stale_ingestion_runs(max_age_minutes=minutes)
+    return jsonify({
+        "ok": True,
+        "minutes": minutes,
+        "stale_fixed": fixed,
+        "state": ingestion_state,
+        "recent_runs": get_ingestion_history(limit=10)
     })
 
 
