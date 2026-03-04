@@ -1,5 +1,13 @@
 from extensions import db
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+
+IST_ZONE = ZoneInfo("Asia/Kolkata")
+
+
+def ist_now():
+    return datetime.now(IST_ZONE).replace(tzinfo=None)
 
 # Raw reviews table
 class Review(db.Model):
@@ -76,7 +84,7 @@ class RiskAlert(db.Model):
     # Metadata
     created_at = db.Column(
         db.DateTime,
-        default=datetime.utcnow
+        default=ist_now
     )
 
 
@@ -89,8 +97,8 @@ class User(db.Model):
     role = db.Column(db.String(32), nullable=False, index=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     force_password_reset = db.Column(db.Boolean, nullable=False, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=ist_now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=ist_now, onupdate=ist_now, nullable=False)
     last_login_at = db.Column(db.DateTime)
 
 
@@ -102,7 +110,7 @@ class AuditLog(db.Model):
     action = db.Column(db.String(120), nullable=False, index=True)
     target_email = db.Column(db.String(255))
     metadata_json = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=ist_now, nullable=False, index=True)
 
 
 class IngestionRun(db.Model):
@@ -111,7 +119,7 @@ class IngestionRun(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     run_id = db.Column(db.String(64), unique=True, nullable=False, index=True)
     triggered_by = db.Column(db.String(64), nullable=False, default="system", index=True)
-    started_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    started_at = db.Column(db.DateTime, nullable=False, default=ist_now, index=True)
     ended_at = db.Column(db.DateTime)
     duration_ms = db.Column(db.Integer)
     status = db.Column(db.String(32), nullable=False, default="running", index=True)

@@ -178,7 +178,13 @@
             </section>
             <section class="card">
                 <div class="label">Last Successful Sync</div>
-                <div class="value">{{ health_snapshot.last_successful_sync_at or "Never" }}</div>
+                <div class="value">
+                    {% if health_snapshot.last_successful_sync_at %}
+                    <span class="ist-ts" data-utc="{{ health_snapshot.last_successful_sync_at }}">{{ health_snapshot.last_successful_sync_at }}</span>
+                    {% else %}
+                    Never
+                    {% endif %}
+                </div>
                 <div class="inline-note" style="margin-top:6px;">
                     Age: {{ health_snapshot.hours_since_last_success if health_snapshot.hours_since_last_success is not none else "N/A" }} hours
                 </div>
@@ -273,8 +279,20 @@
                         <tr>
                             <td class="mono">{{ row.run_id }}</td>
                             <td title="{{ row.triggered_by }}">{{ row.triggered_by_label or row.triggered_by }}</td>
-                            <td>{{ row.started_at or "-" }}</td>
-                            <td>{{ row.ended_at or "-" }}</td>
+                            <td>
+                                {% if row.started_at %}
+                                <span class="ist-ts" data-utc="{{ row.started_at }}">{{ row.started_at }}</span>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if row.ended_at %}
+                                <span class="ist-ts" data-utc="{{ row.ended_at }}">{{ row.ended_at }}</span>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if row.duration_ms is not none %}
                                 {{ row.duration_ms }} ms
@@ -345,15 +363,42 @@
                 if (!elapsedEl) return;
                 const startedAt = elapsedEl.getAttribute("data-started-at");
                 if (!startedAt) return;
-                const startedMs = Date.parse(startedAt);
+                const istStartedAt = /Z$|[+-]\d\d:\d\d$/.test(startedAt) ? startedAt : `${startedAt}+05:30`;
+                const startedMs = Date.parse(istStartedAt);
                 if (Number.isNaN(startedMs)) return;
                 const nowMs = Date.now();
                 const elapsedSec = Math.max(0, Math.floor((nowMs - startedMs) / 1000));
                 elapsedEl.textContent = toHms(elapsedSec);
             }
 
+            function toIstText(utcText) {
+                if (!utcText) return "-";
+                const normalized = /Z$|[+-]\d\d:\d\d$/.test(utcText) ? utcText : `${utcText}+05:30`;
+                const d = new Date(normalized);
+                if (Number.isNaN(d.getTime())) return utcText;
+                return new Intl.DateTimeFormat("en-IN", {
+                    timeZone: "Asia/Kolkata",
+                    year: "numeric",
+                    month: "2-digit",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                    hour12: false
+                }).format(d) + " IST";
+            }
+
+            function updateIstTimestamps() {
+                const nodes = document.querySelectorAll(".ist-ts[data-utc]");
+                nodes.forEach((node) => {
+                    const raw = node.getAttribute("data-utc");
+                    node.textContent = toIstText(raw);
+                });
+            }
+
             updateActiveElapsed();
             setInterval(updateActiveElapsed, 1000);
+            updateIstTimestamps();
 
         })();
     </script>

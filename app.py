@@ -1,5 +1,6 @@
 ﻿from flask import Flask, render_template, jsonify, request, session, redirect, url_for, g
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import random
 import re
 import json
@@ -41,6 +42,12 @@ db.init_app(app)
 
 # Import models AFTER db is initialized
 from models import Review, DailyMetric, RiskAlert, User, AuditLog, IngestionRun
+
+IST_ZONE = ZoneInfo("Asia/Kolkata")
+
+
+def now_ist():
+    return datetime.now(IST_ZONE).replace(tzinfo=None)
 
 ISSUE_TAXONOMY = [
     "Packaging",
@@ -473,7 +480,7 @@ def get_running_ingestion_snapshot():
     if not running_row or not running_row.started_at:
         return None
 
-    elapsed_ms = int((datetime.utcnow() - running_row.started_at).total_seconds() * 1000)
+    elapsed_ms = int((now_ist() - running_row.started_at).total_seconds() * 1000)
     mode_key = _ingestion_mode(running_row.triggered_by)
     expected_duration_ms = _estimate_expected_duration_ms(mode_key)
     progress_pct = None
@@ -532,7 +539,7 @@ def get_ingestion_history(limit=25):
             "error_message": row.error_message
         })
         if row.status == "running" and row.started_at:
-            elapsed_ms = int((datetime.utcnow() - row.started_at).total_seconds() * 1000)
+            elapsed_ms = int((now_ist() - row.started_at).total_seconds() * 1000)
             mode_key = _ingestion_mode(row.triggered_by)
             history[-1]["elapsed_ms"] = elapsed_ms
             history[-1]["elapsed_hms"] = format_hms(elapsed_ms / 1000)
@@ -560,7 +567,7 @@ def get_ingestion_health_snapshot():
             "degraded_threshold_hours": degraded_hours
         }
 
-    now_utc = datetime.utcnow()
+    now_utc = now_ist()
     age_hours = round((now_utc - last_success.ended_at).total_seconds() / 3600, 2)
 
     if age_hours <= healthy_hours:
@@ -607,12 +614,12 @@ def get_scheduler_snapshot():
     seconds_until_next_run = None
 
     if ingestion_state.get("auto_mode_enabled") and interval_seconds:
-        reference_time = datetime.utcnow()
+        reference_time = now_ist()
         if latest_scheduler_run:
             reference_time = latest_scheduler_run.ended_at or latest_scheduler_run.started_at or reference_time
         next_expected = reference_time + timedelta(seconds=interval_seconds)
         next_expected_run_at = next_expected.isoformat()
-        seconds_until_next_run = max(0, int((next_expected - datetime.utcnow()).total_seconds()))
+        seconds_until_next_run = max(0, int((next_expected - now_ist()).total_seconds()))
 
     return {
         "auto_mode_enabled": bool(ingestion_state.get("auto_mode_enabled")),
@@ -660,7 +667,7 @@ def _stop_auto_ingestion():
 def reconcile_stale_ingestion_runs(max_age_minutes=None):
     if max_age_minutes is None:
         max_age_minutes = _ingestion_stale_minutes()
-    now_utc = datetime.utcnow()
+    now_utc = now_ist()
     stale_cutoff = now_utc - timedelta(minutes=max(5, int(max_age_minutes)))
     stale_rows = (
         IngestionRun.query
@@ -687,7 +694,7 @@ def reconcile_stale_ingestion_runs(max_age_minutes=None):
 def has_recent_running_ingestion(max_age_minutes=None):
     if max_age_minutes is None:
         max_age_minutes = _ingestion_stale_minutes()
-    cutoff = datetime.utcnow() - timedelta(minutes=max(1, int(max_age_minutes)))
+    cutoff = now_ist() - timedelta(minutes=max(1, int(max_age_minutes)))
     return (
         IngestionRun.query
         .filter(
@@ -1013,7 +1020,7 @@ def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="ma
     if not ingestion_lock.acquire(blocking=False):
         return False, {"error": "Ingestion already running. Try again after the current run finishes."}
 
-    started_at = datetime.utcnow()
+    started_at = now_ist()
     run_id = f"ing-{uuid.uuid4().hex}"
     normalized_limits = normalize_channel_limits(channel_limits)
     run_row_id = None
@@ -1065,7 +1072,7 @@ def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="ma
             _abort_if_cancelled()
             metric_rows = rebuild_daily_metrics()
 
-            finished_at = datetime.utcnow()
+            finished_at = now_ist()
             duration_ms = int((finished_at - started_at).total_seconds() * 1000)
             persisted_row = IngestionRun.query.get(run_row_id)
             if persisted_row:
@@ -1090,7 +1097,7 @@ def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="ma
         }
         return True, ingestion_state["last_counts"]
     except Exception as exc:
-        finished_at = datetime.utcnow()
+        finished_at = now_ist()
         duration_ms = int((finished_at - started_at).total_seconds() * 1000)
         with app.app_context():
             try:
@@ -1258,7 +1265,7 @@ def build_daily_brief_text(metrics, live_alerts):
     from collections import defaultdict
 
     if not metrics:
-        now_label = datetime.utcnow().strftime("%d %b %Y %H:%M UTC")
+        now_label = now_ist().strftime("%d %b %Y %H:%M IST")
         return (
             f"Daily AI Brief ({now_label})\n"
             "No aggregated metrics are available yet.\n"
@@ -1341,7 +1348,7 @@ def build_daily_brief_text(metrics, live_alerts):
     if not top_alert_lines:
         top_alert_lines.append("- No immediate high-risk spikes detected.")
 
-    now_label = datetime.utcnow().strftime("%d %b %Y %H:%M UTC")
+    now_label = now_ist().strftime("%d %b %Y %H:%M IST")
     return "\n".join([
         f"Daily AI Brief ({now_label})",
         f"Overall: {leader} is currently strongest on sentiment stability; watchlist priority is {weakest_line}.",
@@ -1378,7 +1385,7 @@ def login():
         session["user_role"] = user.role
         session.permanent = True
 
-        user.last_login_at = datetime.utcnow()
+        user.last_login_at = now_ist()
         db.session.commit()
         _audit("login_success", target_email=user.email, metadata={"role": user.role}, actor_email=user.email)
 
@@ -4097,4 +4104,3 @@ if __name__ == "__main__":
         )
 
     app.run(debug=True)
-
