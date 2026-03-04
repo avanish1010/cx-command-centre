@@ -192,16 +192,30 @@
                     Interval: <span id="interval-hms">{{ scheduler_snapshot.interval_hms }}</span>
                 </div>
                 <div class="inline-note" style="margin-top:4px;">
-                    Preset:
-                    {% if (ingestion_state.auto_preset or "demo_fast") == "high_volume" %}
-                    Full Refresh
-                    {% else %}
-                    Incremental Refresh
-                    {% endif %}
+                    Mode: Scheduled Incremental
                 </div>
                 <div class="inline-note" style="margin-top:4px;">
                     Next run in: <span id="countdown-hms">{{ scheduler_snapshot.countdown_hms }}</span>
                 </div>
+            </section>
+            <section class="card">
+                <div class="label">Active Ingestion</div>
+                {% if running_snapshot %}
+                <div class="value" style="font-size:0.98rem;">{{ running_snapshot.mode_label }}</div>
+                <div class="inline-note" style="margin-top:6px;">Run ID: <span class="mono">{{ running_snapshot.run_id }}</span></div>
+                <div class="inline-note" style="margin-top:4px;">Elapsed: {{ running_snapshot.elapsed_hms }}</div>
+                <div class="inline-note" style="margin-top:4px;">Expected: {{ running_snapshot.expected_hms }}</div>
+                {% if running_snapshot.can_cancel %}
+                <form method="post" action="/admin/operations/cancel">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="btn stop" type="submit">Cancel Ingestion</button>
+                </form>
+                {% else %}
+                <div class="inline-note" style="margin-top:6px;">Cancel unavailable for this run.</div>
+                {% endif %}
+                {% else %}
+                <div class="value" style="font-size:0.98rem;">No active run</div>
+                {% endif %}
             </section>
         </div>
 
@@ -224,14 +238,9 @@
                 <div class="inline-note">Default cadence is every 6 hours.</div>
                 <form method="post" action="/admin/operations/auto/start">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <label for="auto_preset" class="inline-note">Preset</label>
-                    <select id="auto_preset" name="preset">
-                        <option value="demo_fast" {% if (ingestion_state.auto_preset or "demo_fast") == "demo_fast" %}selected{% endif %}>Incremental Refresh (Recommended)</option>
-                        <option value="high_volume" {% if ingestion_state.auto_preset == "high_volume" %}selected{% endif %}>Full Refresh (Replace Dataset)</option>
-                    </select>
                     <label for="interval_hours" class="inline-note">Interval (hours)</label>
                     <input id="interval_hours" type="number" min="1" step="1" name="interval_hours" value="{{ (ingestion_state.auto_interval_minutes or 360) // 60 }}">
-                    <button class="btn" type="submit">Start Scheduler</button>
+                    <button class="btn" type="submit">Start Incremental Scheduler</button>
                 </form>
                 <form method="post" action="/admin/operations/auto/stop">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -263,7 +272,15 @@
                             <td title="{{ row.triggered_by }}">{{ row.triggered_by_label or row.triggered_by }}</td>
                             <td>{{ row.started_at or "-" }}</td>
                             <td>{{ row.ended_at or "-" }}</td>
-                            <td>{{ row.duration_ms if row.duration_ms is not none else "-" }} ms</td>
+                            <td>
+                                {% if row.duration_ms is not none %}
+                                {{ row.duration_ms }} ms
+                                {% elif row.status == "running" %}
+                                {{ row.elapsed_hms or "-" }} / ETA {{ row.expected_hms or "-" }}
+                                {% else %}
+                                - ms
+                                {% endif %}
+                            </td>
                             <td>{{ row.records_processed }}</td>
                             <td>{{ row.status }}</td>
                             <td>{{ row.error_message or "-" }}</td>

@@ -10,7 +10,6 @@ import threading
 import math
 import statistics
 import uuid
-import subprocess
 from sqlalchemy import inspect, text, func, cast, Date, case
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -354,6 +353,7 @@ ingestion_state = {
 ingestion_lock = threading.Lock()
 stop_auto_ingest_event = threading.Event()
 auto_ingest_thread = None
+active_ingestion_cancel_event = None
 
 
 def parse_int(name, default_value):
@@ -426,6 +426,83 @@ def _triggered_by_label(triggered_by):
     return value or "Unknown"
 
 
+def _ingestion_mode(triggered_by, clear_existing=False):
+    raw = (triggered_by or "").lower()
+    if clear_existing or "high_volume" in raw or "full_refresh" in raw:
+        return "hard_refresh"
+    if raw == "scheduler" or "scheduler" in raw:
+        return "scheduled_incremental"
+    return "incremental"
+
+
+def _ingestion_mode_label(mode_key):
+    if mode_key == "hard_refresh":
+        return "Hard Refresh"
+    if mode_key == "scheduled_incremental":
+        return "Scheduled Incremental"
+    return "Incremental Refresh"
+
+
+def _estimate_expected_duration_ms(mode_key):
+    baseline_ms = {
+        "incremental": 45000,
+        "scheduled_incremental": 45000,
+        "hard_refresh": 240000
+    }
+    rows = (
+        IngestionRun.query
+        .filter_by(status="success")
+        .order_by(IngestionRun.started_at.desc())
+        .limit(100)
+        .all()
+    )
+    durations = []
+    for row in rows:
+        row_mode = _ingestion_mode(row.triggered_by)
+        if row_mode == mode_key and row.duration_ms:
+            durations.append(int(row.duration_ms))
+            if len(durations) >= 8:
+                break
+    if durations:
+        return int(sum(durations) / len(durations))
+    return baseline_ms.get(mode_key, 60000)
+
+
+def get_running_ingestion_snapshot():
+    running_row = has_recent_running_ingestion()
+    if not running_row or not running_row.started_at:
+        return None
+
+    elapsed_ms = int((datetime.utcnow() - running_row.started_at).total_seconds() * 1000)
+    mode_key = _ingestion_mode(running_row.triggered_by)
+    expected_duration_ms = _estimate_expected_duration_ms(mode_key)
+    progress_pct = None
+    if expected_duration_ms > 0:
+        progress_pct = max(0, min(99, int((elapsed_ms / expected_duration_ms) * 100)))
+
+    can_cancel = bool(
+        ingestion_state.get("last_status") == "running"
+        and ingestion_state.get("last_run_id") == running_row.run_id
+        and active_ingestion_cancel_event is not None
+        and not active_ingestion_cancel_event.is_set()
+    )
+
+    return {
+        "run_id": running_row.run_id,
+        "started_at": running_row.started_at.isoformat(),
+        "elapsed_ms": elapsed_ms,
+        "elapsed_hms": format_hms(elapsed_ms / 1000),
+        "expected_duration_ms": expected_duration_ms,
+        "expected_hms": format_hms(expected_duration_ms / 1000),
+        "progress_pct": progress_pct,
+        "triggered_by": running_row.triggered_by,
+        "triggered_by_label": _triggered_by_label(running_row.triggered_by),
+        "mode": mode_key,
+        "mode_label": _ingestion_mode_label(mode_key),
+        "can_cancel": can_cancel
+    }
+
+
 def get_ingestion_history(limit=25):
     rows = (
         IngestionRun.query
@@ -454,6 +531,13 @@ def get_ingestion_history(limit=25):
             "channel_counts": channels,
             "error_message": row.error_message
         })
+        if row.status == "running" and row.started_at:
+            elapsed_ms = int((datetime.utcnow() - row.started_at).total_seconds() * 1000)
+            mode_key = _ingestion_mode(row.triggered_by)
+            history[-1]["elapsed_ms"] = elapsed_ms
+            history[-1]["elapsed_hms"] = format_hms(elapsed_ms / 1000)
+            history[-1]["expected_duration_ms"] = _estimate_expected_duration_ms(mode_key)
+            history[-1]["expected_hms"] = format_hms(history[-1]["expected_duration_ms"] / 1000)
     return history
 
 
@@ -919,7 +1003,13 @@ def rebuild_daily_metrics():
     return len(new_rows)
 
 
-def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="manual"):
+def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="manual", cancel_event=None):
+    global active_ingestion_cancel_event
+
+    def _abort_if_cancelled():
+        if cancel_event is not None and cancel_event.is_set():
+            raise RuntimeError("Ingestion cancelled by user.")
+
     if not ingestion_lock.acquire(blocking=False):
         return False, {"error": "Ingestion already running. Try again after the current run finishes."}
 
@@ -927,6 +1017,9 @@ def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="ma
     run_id = f"ing-{uuid.uuid4().hex}"
     normalized_limits = normalize_channel_limits(channel_limits)
     run_row_id = None
+    mode_key = _ingestion_mode(triggered_by=triggered_by, clear_existing=clear_existing)
+    expected_duration_ms = _estimate_expected_duration_ms(mode_key)
+    active_ingestion_cancel_event = cancel_event
 
     ingestion_state["last_run_started_at"] = started_at.isoformat()
     ingestion_state["last_status"] = "running"
@@ -934,6 +1027,8 @@ def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="ma
     ingestion_state["last_counts"] = {}
     ingestion_state["last_run_id"] = run_id
     ingestion_state["last_triggered_by"] = triggered_by
+    ingestion_state["expected_duration_ms"] = expected_duration_ms
+    ingestion_state["cancel_requested"] = False
 
     try:
         with app.app_context():
@@ -948,7 +1043,9 @@ def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="ma
             db.session.commit()
             run_row_id = run_row.id
 
+        _abort_if_cancelled()
         reviews, channel_counts = collect_channel_reviews(normalized_limits)
+        _abort_if_cancelled()
         enriched_reviews = [enrich_review_record(r) for r in reviews]
 
         with app.app_context():
@@ -957,12 +1054,15 @@ def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="ma
 
             batch_size = 1000
             for i in range(0, len(enriched_reviews), batch_size):
+                _abort_if_cancelled()
                 db.session.bulk_insert_mappings(Review, enriched_reviews[i:i + batch_size])
                 if not clear_existing:
                     db.session.commit()
             if clear_existing:
+                _abort_if_cancelled()
                 db.session.commit()
 
+            _abort_if_cancelled()
             metric_rows = rebuild_daily_metrics()
 
             finished_at = datetime.utcnow()
@@ -993,23 +1093,29 @@ def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="ma
         finished_at = datetime.utcnow()
         duration_ms = int((finished_at - started_at).total_seconds() * 1000)
         with app.app_context():
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
             if run_row_id:
                 persisted_row = IngestionRun.query.get(run_row_id)
                 if persisted_row:
                     persisted_row.ended_at = finished_at
                     persisted_row.duration_ms = duration_ms
-                    persisted_row.status = "failed"
+                    persisted_row.status = "cancelled" if "cancelled by user" in str(exc).lower() else "failed"
                     persisted_row.records_processed = 0
                     persisted_row.metric_rows = 0
                     persisted_row.channel_counts_json = json.dumps({})
                     persisted_row.error_message = str(exc)
                     db.session.commit()
         ingestion_state["last_run_finished_at"] = finished_at.isoformat()
-        ingestion_state["last_status"] = "failed"
+        ingestion_state["last_status"] = "cancelled" if "cancelled by user" in str(exc).lower() else "failed"
         ingestion_state["last_message"] = str(exc)
         ingestion_state["last_counts"] = {"run_id": run_id}
         return False, {"error": str(exc), "run_id": run_id}
     finally:
+        active_ingestion_cancel_event = None
+        ingestion_state["cancel_requested"] = False
         ingestion_lock.release()
 
 
@@ -1423,6 +1529,7 @@ def admin_operations():
 
     history_rows = get_ingestion_history(limit=40)
     health_snapshot = get_ingestion_health_snapshot()
+    running_snapshot = get_running_ingestion_snapshot()
     latest_run = history_rows[0] if history_rows else None
     if latest_run:
         if latest_run.get("status") == "success":
@@ -1442,6 +1549,7 @@ def admin_operations():
         ui_last_message=ui_last_message,
         history_rows=history_rows,
         health_snapshot=health_snapshot,
+        running_snapshot=running_snapshot,
         scheduler_snapshot=get_scheduler_snapshot()
     )
 
@@ -1469,28 +1577,21 @@ def admin_operations_run():
         )
         return redirect(url_for("admin_operations"))
 
-    worker_payload = {
-        "channel_limits": channel_limits,
-        "clear_existing": bool(clear_existing),
-        "triggered_by": f"admin:{current_user.email}:{preset_name}"
-    }
-    try:
-        subprocess.Popen(
-            [sys.executable, "ingestion_worker.py", json.dumps(worker_payload)],
-            close_fds=True,
-            start_new_session=True
-        )
-    except Exception as exc:
-        ingestion_state["last_message"] = f"Failed to start ingestion worker: {exc}"
-        _audit(
-            "admin_ingestion_trigger_failed",
-            target_email=current_user.email,
-            metadata={"preset": preset_name, "error": str(exc)},
-            actor_email=current_user.email
-        )
-        return redirect(url_for("admin_operations"))
+    cancel_event = threading.Event()
 
-    ingestion_state["last_message"] = "Ingestion started in background worker. Refresh in 30-90 seconds."
+    def _run_async_ingestion():
+        with app.app_context():
+            run_ingestion_pipeline(
+                channel_limits=channel_limits,
+                clear_existing=bool(clear_existing),
+                triggered_by=f"admin:{current_user.email}:{preset_name}",
+                cancel_event=cancel_event
+            )
+
+    t = threading.Thread(target=_run_async_ingestion, daemon=True)
+    t.start()
+
+    ingestion_state["last_message"] = "Ingestion started in background."
     _audit(
         "admin_ingestion_triggered_async",
         target_email=current_user.email,
@@ -1498,8 +1599,37 @@ def admin_operations_run():
             "queued": True,
             "clear_existing": clear_existing,
             "preset": preset_name,
-            "worker": "ingestion_worker.py"
+            "worker": "thread"
         },
+        actor_email=current_user.email
+    )
+    return redirect(url_for("admin_operations"))
+
+
+@app.route("/admin/operations/cancel", methods=["POST"])
+def admin_operations_cancel():
+    current_user = _current_user()
+    if not current_user or current_user.role != ROLE_SUPERADMIN:
+        return render_template("error.html", code=403, message="This section is restricted to SuperAdmin users."), 403
+    if not _verify_csrf():
+        return render_template("error.html", code=400, message="Invalid session token."), 400
+
+    running = has_recent_running_ingestion()
+    if not running:
+        ingestion_state["last_message"] = "No active ingestion run to cancel."
+        return redirect(url_for("admin_operations"))
+
+    if active_ingestion_cancel_event is None:
+        ingestion_state["last_message"] = "Cancel not available for this run (worker not attached)."
+        return redirect(url_for("admin_operations"))
+
+    active_ingestion_cancel_event.set()
+    ingestion_state["cancel_requested"] = True
+    ingestion_state["last_message"] = f"Cancellation requested for run_id={running.run_id}."
+    _audit(
+        "admin_ingestion_cancel_requested",
+        target_email=current_user.email,
+        metadata={"run_id": running.run_id},
         actor_email=current_user.email
     )
     return redirect(url_for("admin_operations"))
@@ -1519,7 +1649,9 @@ def admin_operations_auto_start():
     except ValueError:
         interval_hours = 6
     interval_minutes = max(5, interval_hours * 60)
-    preset_name, channel_limits, clear_existing = resolve_ingestion_limits_from_preset(request.form.get("preset"))
+    # Scheduler is intentionally incremental-only to keep production stable.
+    preset_name, channel_limits, _ = resolve_ingestion_limits_from_preset("demo_fast")
+    clear_existing = False
 
     started, message = _start_auto_ingestion(
         interval_minutes=interval_minutes,
@@ -2639,6 +2771,25 @@ def aggregate_daily_metrics():
     return f"Channel-level aggregation complete! Inserted {inserted} metric rows."
 
 
+@app.route("/data-loader/run")
+def data_loader_run():
+    preset_name, channel_limits, clear_existing = resolve_ingestion_limits_from_preset("high_volume")
+    ok, payload = run_ingestion_pipeline(
+        channel_limits=channel_limits,
+        clear_existing=clear_existing,
+        triggered_by=f"manual_api:{preset_name}:full_refresh"
+    )
+    status_code = 200 if ok else 500
+    return jsonify({
+        "ok": ok,
+        "preset": preset_name,
+        "clear_existing": clear_existing,
+        "health": get_ingestion_health_snapshot(),
+        "state": ingestion_state,
+        "result": payload
+    }), status_code
+
+
 @app.route("/ingest/run", methods=["GET", "POST"])
 def ingest_run():
     if request.method == "POST":
@@ -2685,6 +2836,7 @@ def ingest_status():
         "state": ingestion_state,
         "health": get_ingestion_health_snapshot(),
         "scheduler": get_scheduler_snapshot(),
+        "running": get_running_ingestion_snapshot(),
         "recent_runs": get_ingestion_history(limit=10)
     })
 
