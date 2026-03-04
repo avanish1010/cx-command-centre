@@ -731,8 +731,8 @@
                     <div class="chart-canvas-wrap"><canvas id="competitorTopIssueCompareChart"></canvas></div>
                 </div>
                 <div class="chart-card">
-                    <h3>Issue Counts by Brand</h3>
-                    <div class="chart-canvas-wrap"><canvas id="competitorIssueGroupedChart"></canvas></div>
+                    <h3>Sentiment Distribution by Brand</h3>
+                    <div class="chart-canvas-wrap"><canvas id="competitorSentimentByBrandChart"></canvas></div>
                 </div>
                 <div class="chart-card">
                     <h3>Risk Overview by Brand</h3>
@@ -930,6 +930,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         const chartData = {{ chart_data|tojson }};
+        Chart.defaults.color = "#5f7491";
+        Chart.defaults.borderColor = "#dfe8f5";
         const mainCharts = {};
         const competitorCharts = {};
         const overallCharts = {};
@@ -1015,7 +1017,7 @@
                     label: ds.label || `Brand ${idx + 1}`,
                     data: topIndexes.map(issueIdx => (ds.data || [])[issueIdx] || 0),
                     backgroundColor: ds.backgroundColor || `hsl(${(idx * 75) % 360} 68% 60%)`,
-                    borderColor: ds.borderColor || "#4B5870"
+                    borderColor: ds.borderColor || "#a8b8ce"
                 }))
             };
         }
@@ -1038,7 +1040,31 @@
                     label: brand,
                     data: topIssues.map(issueDs => (issueDs.data || [])[brandIdx] || 0),
                     backgroundColor: colors[brandIdx],
-                    borderColor: "#445066"
+                    borderColor: "#a8b8ce"
+                }))
+            };
+        }
+
+        function pickTopBrandDatasets(datasets, maxBrands = 2) {
+            return deepCopy(datasets || [])
+                .sort((a, b) => {
+                    const totalA = (a.data || []).reduce((s, v) => s + (v || 0), 0);
+                    const totalB = (b.data || []).reduce((s, v) => s + (v || 0), 0);
+                    return totalB - totalA;
+                })
+                .slice(0, maxBrands);
+        }
+
+        function buildBrandSentimentComparison(sentimentBlock, maxBrands = 2) {
+            const labels = deepCopy((sentimentBlock || {}).labels || ["Positive", "Neutral", "Negative"]);
+            const selectedBrands = pickTopBrandDatasets((sentimentBlock || {}).datasets || [], maxBrands);
+            return {
+                labels,
+                datasets: selectedBrands.map((ds, idx) => ({
+                    label: ds.label || `Brand ${idx + 1}`,
+                    data: deepCopy(ds.data || [0, 0, 0]),
+                    backgroundColor: ds.backgroundColor || `hsl(${(idx * 75) % 360} 65% 68%)`,
+                    borderColor: ds.borderColor || "#a8b8ce"
                 }))
             };
         }
@@ -1320,6 +1346,8 @@
 
             const trendLists = selectedChannels.map(ch => ((competitors.trend_by_channel || {}).datasets_by_channel || {})[ch] || []);
             const issueLists = selectedChannels.map(ch => ((competitors.issue_grouped_by_channel || {}).datasets_by_channel || {})[ch] || []);
+            const sentimentByChannel = competitors.sentiment_distribution_by_brand_by_channel || {};
+            const sentimentBase = competitors.sentiment_distribution_by_brand || { labels: ["Positive", "Neutral", "Negative"], datasets: [] };
 
             const mergedTrend = {
                 labels: deepCopy((competitors.trend_comparison || {}).labels || []),
@@ -1329,6 +1357,40 @@
             const mergedIssue = {
                 labels: deepCopy((competitors.issue_grouped || {}).labels || []),
                 datasets: mergeBarDatasetsByLabel(issueLists)
+            };
+
+            const sentimentAccumulator = {};
+            (sentimentBase.datasets || []).forEach(ds => {
+                sentimentAccumulator[ds.label] = {
+                    data: [0, 0, 0],
+                    backgroundColor: ds.backgroundColor,
+                    borderColor: ds.borderColor
+                };
+            });
+            selectedChannels.forEach(channel => {
+                const channelSentiment = sentimentByChannel[channel] || { datasets: [] };
+                (channelSentiment.datasets || []).forEach(ds => {
+                    if (!sentimentAccumulator[ds.label]) {
+                        sentimentAccumulator[ds.label] = {
+                            data: [0, 0, 0],
+                            backgroundColor: ds.backgroundColor,
+                            borderColor: ds.borderColor
+                        };
+                    }
+                    const values = ds.data || [0, 0, 0];
+                    sentimentAccumulator[ds.label].data[0] += values[0] || 0;
+                    sentimentAccumulator[ds.label].data[1] += values[1] || 0;
+                    sentimentAccumulator[ds.label].data[2] += values[2] || 0;
+                });
+            });
+            const mergedSentiment = {
+                labels: deepCopy(sentimentBase.labels || ["Positive", "Neutral", "Negative"]),
+                datasets: Object.keys(sentimentAccumulator).map(label => ({
+                    label,
+                    data: sentimentAccumulator[label].data,
+                    backgroundColor: sentimentAccumulator[label].backgroundColor,
+                    borderColor: sentimentAccumulator[label].borderColor
+                }))
             };
 
             const riskByChannel = competitors.risk_overview_by_channel || {};
@@ -1374,6 +1436,7 @@
             return {
                 trend_comparison: mergedTrend,
                 issue_grouped: mergedIssue,
+                sentiment_distribution_by_brand: mergedSentiment,
                 issue_radar: mergedIssue,
                 risk_overview: mergedRisk,
                 channel_share: mergedShare
@@ -1402,18 +1465,21 @@
                 }
             }
 
-            if (document.getElementById("competitorIssueGroupedChart")) {
+            if (document.getElementById("competitorSentimentByBrandChart")) {
                 if (!competitorCharts.issueGrouped) {
-                    competitorCharts.issueGrouped = makeChart("competitorIssueGroupedChart", {
+                    competitorCharts.issueGrouped = makeChart("competitorSentimentByBrandChart", {
                         type: "bar",
-                        data: competitors.issue_grouped,
+                        data: buildBrandSentimentComparison(competitors.sentiment_distribution_by_brand || { labels: [], datasets: [] }),
                         options: {
                             ...baseOptions(),
-                            scales: { y: { title: { display: true, text: "Issue Mentions" } } }
+                            scales: {
+                                x: { stacked: false },
+                                y: { title: { display: true, text: "Mentions" } }
+                            }
                         }
                     });
                 } else {
-                    competitorCharts.issueGrouped.data = competitors.issue_grouped;
+                    competitorCharts.issueGrouped.data = buildBrandSentimentComparison(competitors.sentiment_distribution_by_brand || { labels: [], datasets: [] });
                     competitorCharts.issueGrouped.update();
                 }
             }

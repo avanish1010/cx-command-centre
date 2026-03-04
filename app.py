@@ -1993,6 +1993,25 @@ def _render_dashboard(view_mode="all"):
             "borderColor": color_palette[idx % len(color_palette)]
         })
 
+    competitor_name_set = set(competitor_names)
+    competitor_sentiment_totals = {
+        brand: [0, 0, 0] for brand in competitor_names
+    }
+    competitor_sentiment_by_channel = defaultdict(
+        lambda: defaultdict(lambda: [0, 0, 0])
+    )
+    for m in metrics:
+        metric_brand = (m.product_name or "").split(" | ")[0]
+        if metric_brand not in competitor_name_set:
+            continue
+        metric_channel = m.channel or "Unknown"
+        competitor_sentiment_totals[metric_brand][0] += (m.positive_count or 0)
+        competitor_sentiment_totals[metric_brand][1] += (m.neutral_count or 0)
+        competitor_sentiment_totals[metric_brand][2] += (m.negative_count or 0)
+        competitor_sentiment_by_channel[metric_channel][metric_brand][0] += (m.positive_count or 0)
+        competitor_sentiment_by_channel[metric_channel][metric_brand][1] += (m.neutral_count or 0)
+        competitor_sentiment_by_channel[metric_channel][metric_brand][2] += (m.negative_count or 0)
+
     competitor_alerts_by_brand = defaultdict(list)
     competitor_alerts_by_brand_channel = defaultdict(lambda: defaultdict(list))
     for alert in competitor_alerts:
@@ -2010,6 +2029,29 @@ def _render_dashboard(view_mode="all"):
         competitor_alert_count.append(len(risks))
 
     all_channels = sorted({c["name"] for c in channel_cards})
+    competitor_sentiment_datasets = []
+    for idx, brand in enumerate(competitor_names):
+        competitor_sentiment_datasets.append({
+            "label": brand,
+            "data": competitor_sentiment_totals.get(brand, [0, 0, 0]),
+            "backgroundColor": f"{color_palette[idx % len(color_palette)]}cc",
+            "borderColor": color_palette[idx % len(color_palette)]
+        })
+    competitor_sentiment_by_channel_payload = {}
+    for channel in all_channels:
+        competitor_sentiment_by_channel_payload[channel] = {
+            "labels": ["Positive", "Neutral", "Negative"],
+            "datasets": [
+                {
+                    "label": brand,
+                    "data": competitor_sentiment_by_channel[channel][brand],
+                    "backgroundColor": f"{color_palette[idx % len(color_palette)]}cc",
+                    "borderColor": color_palette[idx % len(color_palette)]
+                }
+                for idx, brand in enumerate(competitor_names)
+            ]
+        }
+
     overall_sentiment_distribution = {
         "labels": ["Positive", "Neutral", "Negative"],
         "data": [
@@ -2227,6 +2269,11 @@ def _render_dashboard(view_mode="all"):
                 "labels": ISSUE_TAXONOMY,
                 "datasets": competitor_issue_datasets
             },
+            "sentiment_distribution_by_brand": {
+                "labels": ["Positive", "Neutral", "Negative"],
+                "datasets": competitor_sentiment_datasets
+            },
+            "sentiment_distribution_by_brand_by_channel": competitor_sentiment_by_channel_payload,
             "issue_radar": {
                 "labels": ISSUE_TAXONOMY,
                 "datasets": competitor_issue_datasets
