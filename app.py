@@ -10,7 +10,6 @@ import threading
 import math
 import statistics
 import uuid
-import subprocess
 from sqlalchemy import inspect, text, func, cast, Date
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -401,9 +400,9 @@ def resolve_ingestion_limits_from_preset(preset_name, overrides=None):
 
 def _ingestion_stale_minutes():
     try:
-        return max(5, int(os.getenv("INGEST_STALE_MINUTES", "5")))
+        return max(1, int(os.getenv("INGEST_STALE_MINUTES", "2")))
     except ValueError:
-        return 5
+        return 2
 
 
 def _triggered_by_label(triggered_by):
@@ -1497,37 +1496,24 @@ def admin_operations_run():
         )
         return redirect(url_for("admin_operations"))
 
-    worker_payload = {
-        "channel_limits": channel_limits,
-        "clear_existing": bool(clear_existing),
-        "triggered_by": f"admin:{current_user.email}:{preset_name}"
-    }
-    try:
-        subprocess.Popen(
-            [sys.executable, "ingestion_worker.py", json.dumps(worker_payload)],
-            close_fds=True
-        )
-    except Exception as exc:
-        ingestion_state["last_message"] = f"Failed to queue ingestion worker: {exc}"
-        _audit(
-            "admin_ingestion_trigger_failed",
-            target_email=current_user.email,
-            metadata={"preset": preset_name, "error": str(exc)},
-            actor_email=current_user.email
-        )
-        return redirect(url_for("admin_operations"))
-
+    ok, result_payload = run_ingestion_pipeline(
+        channel_limits=channel_limits,
+        clear_existing=clear_existing,
+        triggered_by=f"admin:{current_user.email}:{preset_name}"
+    )
     ingestion_state["last_message"] = (
-        "Ingestion started in background worker. Refresh this page in 30-60 seconds."
+        f"Ingestion completed ({result_payload.get('reviews_loaded', 0)} reviews, "
+        f"{result_payload.get('daily_metric_rows', 0)} metric rows)."
+        if ok else f"Ingestion failed: {result_payload.get('error', 'Unknown error')}"
     )
     _audit(
-        "admin_ingestion_triggered_worker",
+        "admin_ingestion_triggered_sync",
         target_email=current_user.email,
         metadata={
-            "queued": True,
+            "ok": ok,
             "clear_existing": clear_existing,
             "preset": preset_name,
-            "worker": "ingestion_worker.py"
+            "result": result_payload
         },
         actor_email=current_user.email
     )
@@ -2727,7 +2713,7 @@ def ingest_history():
 
 @app.route("/ingest/reconcile-stale")
 def ingest_reconcile_stale():
-    minutes = parse_int("minutes", 120)
+    minutes = parse_int("minutes", _ingestion_stale_minutes())
     fixed = reconcile_stale_ingestion_runs(max_age_minutes=minutes)
     return jsonify({
         "ok": True,
