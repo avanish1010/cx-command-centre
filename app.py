@@ -2901,7 +2901,12 @@ def ingest_run():
 
 @app.route("/ingest/status")
 def ingest_status():
-    reconcile_stale_ingestion_runs()
+    # If this worker is not actively ingesting, aggressively reconcile stale rows
+    # so zombie "running" states from interrupted workers clear quickly.
+    if ingestion_lock.locked():
+        reconcile_stale_ingestion_runs(max_age_minutes=_ingestion_stale_minutes())
+    else:
+        reconcile_stale_ingestion_runs(max_age_minutes=1)
     return jsonify({
         "state": ingestion_state,
         "health": get_ingestion_health_snapshot(),
