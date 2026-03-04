@@ -1420,23 +1420,29 @@ def admin_operations_run():
 
     source = request.form
     preset_name, channel_limits, clear_existing = resolve_ingestion_limits_from_preset(source.get("preset"))
-    ok, result_payload = run_ingestion_pipeline(
-        channel_limits=channel_limits,
-        clear_existing=clear_existing,
-        triggered_by=f"admin:{current_user.email}:{preset_name}"
-    )
-    ingestion_state["last_message"] = (
-        "Ingestion and aggregation completed from Admin Operations."
-        if ok else f"Ingestion failed from Admin Operations: {result_payload.get('error', 'Unknown error')}"
-    )
+
+    def _run_async_ingestion():
+        try:
+            run_ingestion_pipeline(
+                channel_limits=channel_limits,
+                clear_existing=clear_existing,
+                triggered_by=f"admin:{current_user.email}:{preset_name}"
+            )
+        except Exception:
+            app.logger.exception("Admin async ingestion thread failed unexpectedly.")
+
+    threading.Thread(
+        target=_run_async_ingestion,
+        daemon=True
+    ).start()
+    ingestion_state["last_message"] = "Ingestion queued from Admin Operations."
     _audit(
-        "admin_ingestion_triggered_sync",
+        "admin_ingestion_triggered_async",
         target_email=current_user.email,
         metadata={
-            "ok": ok,
+            "queued": True,
             "clear_existing": clear_existing,
             "preset": preset_name,
-            "result": result_payload
         },
         actor_email=current_user.email
     )
@@ -1506,6 +1512,16 @@ def _render_dashboard(view_mode="all"):
     from models import DailyMetric, Review
     from collections import defaultdict
 
+    def _brand_from_product_name(product_name):
+        text_value = (product_name or "").strip()
+        if not text_value:
+            return "Unknown"
+        if " | " in text_value:
+            return text_value.split(" | ", 1)[0].strip() or "Unknown"
+        if "|" in text_value:
+            return text_value.split("|", 1)[0].strip() or "Unknown"
+        return text_value
+
     requested_limit = request.args.get("top_negative", default=5, type=int)
     top_negative_limit = min(10, max(1, requested_limit))
 
@@ -1524,7 +1540,7 @@ def _render_dashboard(view_mode="all"):
 
     brand_daily_neg = defaultdict(lambda: defaultdict(list))
     for m in metrics:
-        brand = m.product_name.split(" | ")[0]
+        brand = _brand_from_product_name(m.product_name)
         brand_daily_neg[brand][m.date].append(m.negative_percentage or 0)
 
     health_scores = {}
@@ -1619,7 +1635,7 @@ def _render_dashboard(view_mode="all"):
 
         grouped_data = defaultdict(list)
         for m in metrics:
-            brand = (m.product_name or "").split(" | ")[0]
+            brand = _brand_from_product_name(m.product_name)
             if brand == target_brand:
                 grouped_data[(m.product_name, m.channel)].append(m)
 
@@ -1738,7 +1754,7 @@ def _render_dashboard(view_mode="all"):
 
         grouped_data = defaultdict(list)
         for m in metrics:
-            brand = (m.product_name or "").split(" | ")[0]
+            brand = _brand_from_product_name(m.product_name)
             if brand in target_brands:
                 grouped_data[(m.product_name, m.channel)].append(m)
 
@@ -1844,7 +1860,7 @@ def _render_dashboard(view_mode="all"):
     issue_summary = defaultdict(lambda: {issue: 0 for issue in ISSUE_TAXONOMY})
 
     for m in metrics:
-        brand = m.product_name.split(" | ")[0]
+        brand = _brand_from_product_name(m.product_name)
         for issue, column in ISSUE_COLUMN_MAP.items():
             issue_summary[brand][issue] += getattr(m, column, 0) or 0
 
