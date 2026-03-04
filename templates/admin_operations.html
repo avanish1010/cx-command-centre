@@ -249,12 +249,6 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="btn stop" type="submit">Stop Scheduler</button>
                 </form>
-                <div class="inline-note" style="margin-top:10px;">Demo quick scheduler (minutes, min 5)</div>
-                <form id="quick-scheduler-form">
-                    <label for="quick_minutes" class="inline-note">Interval (minutes)</label>
-                    <input id="quick_minutes" type="number" min="5" step="1" value="5">
-                    <button class="btn" type="submit">Start Quick Demo Scheduler</button>
-                </form>
             </section>
         </div>
 
@@ -372,32 +366,6 @@
             updateRunningElapsed();
             setInterval(updateRunningElapsed, 1000);
 
-            const quickSchedulerForm = document.getElementById("quick-scheduler-form");
-            if (quickSchedulerForm) {
-                quickSchedulerForm.addEventListener("submit", async function (evt) {
-                    evt.preventDefault();
-                    const minutesInput = document.getElementById("quick_minutes");
-                    const requested = Number(minutesInput && minutesInput.value ? minutesInput.value : "5");
-                    const minutes = Number.isFinite(requested) ? Math.max(5, Math.floor(requested)) : 5;
-                    try {
-                        const startUrl = `/ingest/auto/start?minutes=${minutes}&preset=demo_fast`;
-                        let resp = await fetch(startUrl, {
-                            credentials: "same-origin"
-                        });
-                        if (!resp.ok) throw new Error("Failed to start quick scheduler");
-                        const data = await resp.json();
-                        if (data && data.already_running) {
-                            const stopResp = await fetch("/ingest/auto/stop", { credentials: "same-origin" });
-                            if (!stopResp.ok) throw new Error("Failed to stop existing scheduler");
-                            resp = await fetch(startUrl, { credentials: "same-origin" });
-                            if (!resp.ok) throw new Error("Failed to restart scheduler");
-                        }
-                        window.location.reload();
-                    } catch (e) {
-                        alert("Could not start quick scheduler. Try again.");
-                    }
-                });
-            }
         })();
     </script>
 </body>
