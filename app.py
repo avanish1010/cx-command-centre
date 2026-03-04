@@ -10,6 +10,7 @@ import threading
 import math
 import statistics
 import uuid
+import subprocess
 from sqlalchemy import inspect, text, func, cast, Date
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -400,9 +401,9 @@ def resolve_ingestion_limits_from_preset(preset_name, overrides=None):
 
 def _ingestion_stale_minutes():
     try:
-        return max(1, int(os.getenv("INGEST_STALE_MINUTES", "2")))
+        return max(5, int(os.getenv("INGEST_STALE_MINUTES", "30")))
     except ValueError:
-        return 2
+        return 30
 
 
 def _triggered_by_label(triggered_by):
@@ -600,16 +601,11 @@ def reconcile_stale_ingestion_runs(max_age_minutes=None):
 
 
 def has_recent_running_ingestion(max_age_minutes=None):
-    if max_age_minutes is None:
-        max_age_minutes = _ingestion_stale_minutes()
-    now_utc = datetime.utcnow()
-    cutoff = now_utc - timedelta(minutes=max(5, int(max_age_minutes)))
     return (
         IngestionRun.query
         .filter(
             IngestionRun.status == "running",
-            IngestionRun.started_at.isnot(None),
-            IngestionRun.started_at >= cutoff
+            IngestionRun.started_at.isnot(None)
         )
         .order_by(IngestionRun.started_at.desc())
         .first()
@@ -642,61 +638,38 @@ def compute_influence_factor(channel, followers=None, views=None, engagement_cou
 
 
 def build_influence_lookup():
-    def _coerce_date(value):
-        if value is None:
-            return None
-        if isinstance(value, (int, float)):
-            try:
-                # Handle unix timestamps (seconds or milliseconds).
-                epoch_value = float(value)
-                if epoch_value > 1e12:
-                    epoch_value = epoch_value / 1000.0
-                return datetime.utcfromtimestamp(epoch_value).date()
-            except Exception:
-                return None
-        if hasattr(value, "date"):
-            try:
-                return value.date()
-            except Exception:
-                pass
-        if isinstance(value, str):
-            text_value = value.strip()
-            if not text_value:
-                return None
-            try:
-                return datetime.fromisoformat(text_value).date()
-            except ValueError:
-                try:
-                    return datetime.fromisoformat(text_value.replace("Z", "+00:00")).date()
-                except ValueError:
-                    return None
-        return None
-
     rows = db.session.execute(
         text(
             """
-            SELECT brand_name, product_name, channel, timestamp, influence_factor
+            SELECT
+                brand_name,
+                product_name,
+                channel,
+                DATE(timestamp) AS day_value,
+                AVG(COALESCE(influence_factor, 1.0)) AS avg_factor
             FROM reviews
             WHERE timestamp IS NOT NULL
+            GROUP BY brand_name, product_name, channel, DATE(timestamp)
             """
         )
     ).fetchall()
 
-    buckets = {}
-    for brand_name, product_name, channel, timestamp_value, influence_factor in rows:
-        day_value = _coerce_date(timestamp_value)
-        if day_value is None:
-            continue
-        key = (brand_name, product_name, channel, day_value)
-        if key not in buckets:
-            buckets[key] = [0.0, 0]
-        buckets[key][0] += float(influence_factor or 1.0)
-        buckets[key][1] += 1
-
     lookup = {}
-    for key, (factor_sum, factor_count) in buckets.items():
-        avg_factor = (factor_sum / factor_count) if factor_count else 1.0
-        lookup[key] = round(max(1.0, min(1.5, avg_factor)), 3)
+    for brand_name, product_name, channel, day_value, avg_factor in rows:
+        if not day_value:
+            continue
+        try:
+            if isinstance(day_value, str):
+                parsed_day = datetime.fromisoformat(day_value).date()
+            else:
+                parsed_day = day_value
+        except Exception:
+            continue
+
+        lookup[(brand_name, product_name, channel, parsed_day)] = round(
+            max(1.0, min(1.5, float(avg_factor or 1.0))),
+            3,
+        )
     return lookup
 
 
@@ -1496,24 +1469,28 @@ def admin_operations_run():
         )
         return redirect(url_for("admin_operations"))
 
-    def _run_admin_ingestion_async():
-        try:
-            ok, result_payload = run_ingestion_pipeline(
-                channel_limits=channel_limits,
-                clear_existing=clear_existing,
-                triggered_by=f"admin:{current_user.email}:{preset_name}"
-            )
-            ingestion_state["last_message"] = (
-                f"Ingestion completed ({result_payload.get('reviews_loaded', 0)} reviews, "
-                f"{result_payload.get('daily_metric_rows', 0)} metric rows)."
-                if ok else f"Ingestion failed: {result_payload.get('error', 'Unknown error')}"
-            )
-        except Exception:
-            app.logger.exception("Admin async ingestion failed unexpectedly.")
-            ingestion_state["last_message"] = "Ingestion failed unexpectedly. Check logs."
+    worker_payload = {
+        "channel_limits": channel_limits,
+        "clear_existing": bool(clear_existing),
+        "triggered_by": f"admin:{current_user.email}:{preset_name}"
+    }
+    try:
+        subprocess.Popen(
+            [sys.executable, "ingestion_worker.py", json.dumps(worker_payload)],
+            close_fds=True,
+            start_new_session=True
+        )
+    except Exception as exc:
+        ingestion_state["last_message"] = f"Failed to start ingestion worker: {exc}"
+        _audit(
+            "admin_ingestion_trigger_failed",
+            target_email=current_user.email,
+            metadata={"preset": preset_name, "error": str(exc)},
+            actor_email=current_user.email
+        )
+        return redirect(url_for("admin_operations"))
 
-    threading.Thread(target=_run_admin_ingestion_async, daemon=True).start()
-    ingestion_state["last_message"] = "Ingestion started. Refresh this page in 30-90 seconds."
+    ingestion_state["last_message"] = "Ingestion started in background worker. Refresh in 30-90 seconds."
     _audit(
         "admin_ingestion_triggered_async",
         target_email=current_user.email,
@@ -1521,6 +1498,7 @@ def admin_operations_run():
             "queued": True,
             "clear_existing": clear_existing,
             "preset": preset_name,
+            "worker": "ingestion_worker.py"
         },
         actor_email=current_user.email
     )
