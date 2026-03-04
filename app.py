@@ -10,6 +10,7 @@ import threading
 import math
 import statistics
 import uuid
+import subprocess
 from sqlalchemy import inspect, text, func, cast, Date
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -824,7 +825,8 @@ def collect_channel_reviews(channel_limits):
     if os.path.exists(amazon_path):
         amazon_reviews = fetch_amazon_reviews(amazon_path, limit=channel_limits["amazon"])
     else:
-        amazon_reviews = []
+        # Cloud environments may not mount the source dataset; fallback to synthetic Amazon records.
+        amazon_reviews = fetch_amazon_reviews(None, limit=channel_limits["amazon"])
     channel_counts["Amazon"] = len(amazon_reviews)
     all_reviews.extend(amazon_reviews)
 
@@ -1495,24 +1497,37 @@ def admin_operations_run():
         )
         return redirect(url_for("admin_operations"))
 
-    ok, result_payload = run_ingestion_pipeline(
-        channel_limits=channel_limits,
-        clear_existing=clear_existing,
-        triggered_by=f"admin:{current_user.email}:{preset_name}"
-    )
+    worker_payload = {
+        "channel_limits": channel_limits,
+        "clear_existing": bool(clear_existing),
+        "triggered_by": f"admin:{current_user.email}:{preset_name}"
+    }
+    try:
+        subprocess.Popen(
+            [sys.executable, "ingestion_worker.py", json.dumps(worker_payload)],
+            close_fds=True
+        )
+    except Exception as exc:
+        ingestion_state["last_message"] = f"Failed to queue ingestion worker: {exc}"
+        _audit(
+            "admin_ingestion_trigger_failed",
+            target_email=current_user.email,
+            metadata={"preset": preset_name, "error": str(exc)},
+            actor_email=current_user.email
+        )
+        return redirect(url_for("admin_operations"))
+
     ingestion_state["last_message"] = (
-        f"Ingestion completed ({result_payload.get('reviews_loaded', 0)} reviews, "
-        f"{result_payload.get('daily_metric_rows', 0)} metric rows)."
-        if ok else f"Ingestion failed: {result_payload.get('error', 'Unknown error')}"
+        "Ingestion started in background worker. Refresh this page in 30-60 seconds."
     )
     _audit(
-        "admin_ingestion_triggered_sync",
+        "admin_ingestion_triggered_worker",
         target_email=current_user.email,
         metadata={
-            "ok": ok,
+            "queued": True,
             "clear_existing": clear_existing,
             "preset": preset_name,
-            "result": result_payload
+            "worker": "ingestion_worker.py"
         },
         actor_email=current_user.email
     )
