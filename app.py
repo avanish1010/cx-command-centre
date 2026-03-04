@@ -11,7 +11,7 @@ import math
 import statistics
 import uuid
 import subprocess
-from sqlalchemy import inspect, text, func, cast, Date
+from sqlalchemy import inspect, text, func, cast, Date, case
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import DATABASE_URL, SQLALCHEMY_ENGINE_OPTIONS
@@ -401,9 +401,9 @@ def resolve_ingestion_limits_from_preset(preset_name, overrides=None):
 
 def _ingestion_stale_minutes():
     try:
-        return max(5, int(os.getenv("INGEST_STALE_MINUTES", "30")))
+        return max(5, int(os.getenv("INGEST_STALE_MINUTES", "8")))
     except ValueError:
-        return 30
+        return 8
 
 
 def _triggered_by_label(triggered_by):
@@ -601,11 +601,15 @@ def reconcile_stale_ingestion_runs(max_age_minutes=None):
 
 
 def has_recent_running_ingestion(max_age_minutes=None):
+    if max_age_minutes is None:
+        max_age_minutes = _ingestion_stale_minutes()
+    cutoff = datetime.utcnow() - timedelta(minutes=max(1, int(max_age_minutes)))
     return (
         IngestionRun.query
         .filter(
             IngestionRun.status == "running",
-            IngestionRun.started_at.isnot(None)
+            IngestionRun.started_at.isnot(None),
+            IngestionRun.started_at >= cutoff
         )
         .order_by(IngestionRun.started_at.desc())
         .first()
@@ -836,11 +840,7 @@ def collect_channel_reviews(channel_limits):
 
 
 def rebuild_daily_metrics():
-    from collections import defaultdict
     from models import Review, DailyMetric
-
-    DailyMetric.query.delete()
-    db.session.commit()
 
     def metric_product_label(brand, product):
         brand_text = (brand or "").strip()
@@ -855,70 +855,68 @@ def rebuild_daily_metrics():
                     product_text = right.strip()
         return f"{brand_text} | {product_text or 'Unknown Product'}"
 
-    reviews = Review.query.all()
-    daily_data = defaultdict(lambda: {
-        "total": 0,
-        "positive": 0,
-        "neutral": 0,
-        "negative": 0,
-        "Packaging": 0,
-        "Delivery": 0,
-        "Quality": 0,
-        "Pricing": 0,
-        "Support": 0,
-        "Side Effects": 0,
-        "Trust": 0
-    })
+    grouped_rows = (
+        db.session.query(
+            func.date(Review.timestamp).label("metric_date"),
+            Review.brand_name.label("brand_name"),
+            Review.product_name.label("product_name"),
+            Review.channel.label("channel"),
+            func.count(Review.id).label("total_mentions"),
+            func.sum(case((func.lower(Review.sentiment) == "positive", 1), else_=0)).label("positive_count"),
+            func.sum(case((func.lower(Review.sentiment) == "neutral", 1), else_=0)).label("neutral_count"),
+            func.sum(case((func.lower(Review.sentiment) == "negative", 1), else_=0)).label("negative_count"),
+            func.sum(case((Review.issue_category == "Packaging", 1), else_=0)).label("packaging_count"),
+            func.sum(case((Review.issue_category == "Delivery", 1), else_=0)).label("delivery_count"),
+            func.sum(case((Review.issue_category == "Quality", 1), else_=0)).label("quality_count"),
+            func.sum(case((Review.issue_category == "Pricing", 1), else_=0)).label("pricing_count"),
+            func.sum(case((Review.issue_category == "Support", 1), else_=0)).label("support_count"),
+            func.sum(case((Review.issue_category == "Side Effects", 1), else_=0)).label("side_effects_count"),
+            func.sum(case((Review.issue_category == "Trust", 1), else_=0)).label("trust_count"),
+        )
+        .filter(Review.timestamp.isnot(None))
+        .group_by(
+            func.date(Review.timestamp),
+            Review.brand_name,
+            Review.product_name,
+            Review.channel,
+        )
+        .all()
+    )
 
-    for review in reviews:
-        if not review.timestamp:
-            continue
+    DailyMetric.query.delete(synchronize_session=False)
 
-        key = (
-            review.timestamp.date(),
-            review.brand_name,
-            review.product_name,
-            review.channel
+    new_rows = []
+    for row in grouped_rows:
+        metric_date = row.metric_date
+        if isinstance(metric_date, str):
+            metric_date = datetime.fromisoformat(metric_date).date()
+        total = int(row.total_mentions or 0)
+        negative = int(row.negative_count or 0)
+        negative_percentage = (negative / total) * 100 if total > 0 else 0.0
+        new_rows.append(
+            DailyMetric(
+                date=metric_date,
+                channel=row.channel,
+                product_name=metric_product_label(row.brand_name, row.product_name),
+                total_mentions=total,
+                positive_count=int(row.positive_count or 0),
+                neutral_count=int(row.neutral_count or 0),
+                negative_count=negative,
+                negative_percentage=negative_percentage,
+                packaging_count=int(row.packaging_count or 0),
+                delivery_count=int(row.delivery_count or 0),
+                quality_count=int(row.quality_count or 0),
+                pricing_count=int(row.pricing_count or 0),
+                support_count=int(row.support_count or 0),
+                side_effects_count=int(row.side_effects_count or 0),
+                trust_count=int(row.trust_count or 0),
+            )
         )
 
-        daily_data[key]["total"] += 1
-        sentiment = (review.sentiment or "").lower()
-        if sentiment == "positive":
-            daily_data[key]["positive"] += 1
-        elif sentiment == "neutral":
-            daily_data[key]["neutral"] += 1
-        elif sentiment == "negative":
-            daily_data[key]["negative"] += 1
-
-        if review.issue_category in daily_data[key]:
-            daily_data[key][review.issue_category] += 1
-
-    inserted = 0
-    for (date, brand, product, channel), data in daily_data.items():
-        negative_percentage = (data["negative"] / data["total"]) * 100 if data["total"] > 0 else 0
-
-        metric = DailyMetric(
-            date=date,
-            channel=channel,
-            product_name=metric_product_label(brand, product),
-            total_mentions=data["total"],
-            positive_count=data["positive"],
-            neutral_count=data["neutral"],
-            negative_count=data["negative"],
-            negative_percentage=negative_percentage,
-            packaging_count=data["Packaging"],
-            delivery_count=data["Delivery"],
-            quality_count=data["Quality"],
-            pricing_count=data["Pricing"],
-            support_count=data["Support"],
-            side_effects_count=data["Side Effects"],
-            trust_count=data["Trust"]
-        )
-        db.session.add(metric)
-        inserted += 1
-
+    if new_rows:
+        db.session.bulk_save_objects(new_rows)
     db.session.commit()
-    return inserted
+    return len(new_rows)
 
 
 def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="manual"):
@@ -955,12 +953,14 @@ def run_ingestion_pipeline(channel_limits, clear_existing=True, triggered_by="ma
 
         with app.app_context():
             if clear_existing:
-                Review.query.delete()
-                db.session.commit()
+                Review.query.delete(synchronize_session=False)
 
             batch_size = 1000
             for i in range(0, len(enriched_reviews), batch_size):
                 db.session.bulk_insert_mappings(Review, enriched_reviews[i:i + batch_size])
+                if not clear_existing:
+                    db.session.commit()
+            if clear_existing:
                 db.session.commit()
 
             metric_rows = rebuild_daily_metrics()
@@ -1582,6 +1582,14 @@ def _render_dashboard(view_mode="all"):
     top_negative_limit = min(10, max(1, requested_limit))
 
     metrics = DailyMetric.query.order_by(DailyMetric.date).all()
+    if not metrics:
+        review_count = Review.query.count()
+        if review_count > 0:
+            try:
+                rebuild_daily_metrics()
+                metrics = DailyMetric.query.order_by(DailyMetric.date).all()
+            except Exception:
+                app.logger.exception("Failed to rebuild daily metrics during dashboard fallback.")
     try:
         influence_lookup = build_influence_lookup()
     except Exception:
