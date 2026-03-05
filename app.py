@@ -3444,6 +3444,7 @@ def detect_spike():
     from models import DailyMetric
     from collections import defaultdict
     import statistics
+    import math
 
     TARGET_BRAND = "AuraWell Labs"
 
@@ -3512,15 +3513,16 @@ def detect_spike():
                 if z > 2:
                     if z >= 3:
                         band = "Severe"
-                        multiplier = 22
+                        multiplier = 12
                     elif z >= 2.5:
                         band = "Elevated"
-                        multiplier = 19
+                        multiplier = 10
                     else:
                         band = "Moderate"
-                        multiplier = 17
+                        multiplier = 8
 
-                    risk = round(min(100, z * multiplier * weight * influence_factor * persistence_mult), 1)
+                    raw_risk = z * multiplier * weight * influence_factor * persistence_mult
+                    risk = round(100 * (1 - math.exp(-raw_risk / 35)), 1)
                     structured_alerts.append({
                         "type": "Statistical",
                         "product": product,
@@ -3540,8 +3542,10 @@ def detect_spike():
                 avg_last_two = sum((getattr(r, column, 0) or 0) for r in last_two) / 2
                 if avg_last_two > 0:
                     growth = today_value / avg_last_two
-                    if growth >= 2.5:
-                        risk = round(min(100, growth * 18 * weight * influence_factor * persistence_mult), 1)
+                    abs_jump = today_value - avg_last_two
+                    if growth >= 2.5 and abs_jump >= 3:
+                        raw_risk = growth * 9 * weight * influence_factor * persistence_mult
+                        risk = round(100 * (1 - math.exp(-raw_risk / 35)), 1)
                         structured_alerts.append({
                             "type": "Velocity",
                             "product": product,
@@ -3564,7 +3568,7 @@ def detect_spike():
                 growth_value = time_signals[-1]["growth"] or 1.0
                 recovery_progress = max(0.0, (1.0 - growth_value))
                 recovery_base = (35 + (prior_run_days * 4)) * weight * influence_factor
-                recovery_risk = round(max(20, min(60, recovery_base * (0.7 - min(0.3, recovery_progress)))), 1)
+                recovery_risk = round(min(55, max(8, recovery_base * (0.75 - min(0.35, recovery_progress)))), 1)
                 structured_alerts.append({
                     "type": "Recovery",
                     "product": product,
