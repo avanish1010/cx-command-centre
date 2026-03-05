@@ -3778,6 +3778,7 @@ def competitor_spike():
     from models import DailyMetric
     from collections import defaultdict
     import statistics
+    import math
 
     TARGET_BRANDS = ["GlowNest", "NutraZen"]
 
@@ -3842,7 +3843,8 @@ def competitor_spike():
                     if std > 0:
                         z_score = (today_value - mean) / std
                         if z_score > 2:
-                            risk_score = min(100, z_score * 20 * channel_weight * influence_factor * persistence_mult)
+                            raw_risk = z_score * 9 * channel_weight * influence_factor * persistence_mult
+                            risk_score = 100 * (1 - math.exp(-raw_risk / 35))
                             product_alerts.append({
                                 "brand": brand,
                                 "issue": issue_name,
@@ -3861,8 +3863,10 @@ def competitor_spike():
                 avg_last_two = sum((getattr(r, column, 0) or 0) for r in last_two) / 2
                 if avg_last_two > 0:
                     growth_ratio = today_value / avg_last_two
-                    if growth_ratio >= 3:
-                        risk_score = min(100, growth_ratio * 25 * channel_weight * influence_factor * persistence_mult)
+                    abs_jump = today_value - avg_last_two
+                    if growth_ratio >= 3 and abs_jump >= 3:
+                        raw_risk = growth_ratio * 9 * channel_weight * influence_factor * persistence_mult
+                        risk_score = 100 * (1 - math.exp(-raw_risk / 35))
                         product_alerts.append({
                             "brand": brand,
                             "issue": issue_name,
@@ -3884,7 +3888,7 @@ def competitor_spike():
                 growth_value = time_signals[-1]["growth"] or 1.0
                 recovery_progress = max(0.0, (1.0 - growth_value))
                 recovery_base = (35 + (prior_run_days * 4)) * channel_weight * influence_factor
-                recovery_risk = round(max(20, min(60, recovery_base * (0.7 - min(0.3, recovery_progress)))), 1)
+                recovery_risk = round(min(55, max(8, recovery_base * (0.75 - min(0.35, recovery_progress)))), 1)
                 product_alerts.append({
                     "brand": brand,
                     "issue": issue_name,
